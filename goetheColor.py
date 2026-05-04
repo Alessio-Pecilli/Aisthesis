@@ -10,7 +10,21 @@ class GoethePolarity(str, Enum):
 class GoetheQueryExtractor(BaseModel):
     emozione: str = Field(..., description="L'emozione principale provata nella frase.")
     polarita: GoethePolarity = Field(..., description="Polarità goethiana: PLUS, MINUS o NEUTRAL.")
-    search_query: str = Field(..., description="Query in italiano ottimizzata per cercare nel testo di Goethe.")
+    search_query: str = Field(..., description="Query in italiano ottimizzata per cercare nel testo di Goethe con parole chiave goethiane obbligatorie.")
+
+PLUS_QUERY = "luce e calore, sole, energia, attivita, vitalita, forza, fuoco, gioioso, eccitante"
+MINUS_QUERY = "ombra e freddo, oscurita, lontananza, solitudine, malinconia, inquietante, dolorosa, lato del meno"
+NEUTRAL_QUERY = "equilibrio, quiete, soddisfazione, natura, riposo, giallo e blu"
+
+def _force_goethe_query(result: GoetheQueryExtractor) -> GoetheQueryExtractor:
+    """Mantiene deterministiche le parole chiave RAG anche se l'LLM devia."""
+    if result.polarita == GoethePolarity.PLUS:
+        result.search_query = PLUS_QUERY
+    elif result.polarita == GoethePolarity.MINUS:
+        result.search_query = MINUS_QUERY
+    else:
+        result.search_query = NEUTRAL_QUERY
+    return result
 
 def parse_emotion(text: str) -> GoetheQueryExtractor:
     system_prompt = """Sei il modulo NLP del progetto Aisthesis.
@@ -19,13 +33,25 @@ Devi analizzare la frase utente e popolare ESATTAMENTE i tre campi richiesti.
 REGOLE RIGIDE:
 1. 'emozione': Inserisci SOLO il nome dell'emozione in italiano (es. Rabbia, Gioia, Tristezza, Ansia, Euforia). NON inserire mai le parole 'plus' o 'minus' in questo campo.
 2. 'polarita': Classifica l'emozione secondo Goethe. Usa 'plus' per stati attivi/energici/caldi; usa 'minus' per stati passivi/malinconici/freddi.
-3. 'search_query': DIMENTICA le parole dell'emozione moderna. Traduci l'emozione usando ESCLUSIVAMENTE il vocabolario di Goethe. 
-Se la polarità è PLUS, usa parole come: "luce, caldo, fuoco, sole, forza attiva, eccitazione, azione, energia". 
-Se la polarità è MINUS, usa parole come: "oscurità, freddo, ombra, passività, privazione, lontananza, irrequietezza, vuoto".
+3. 'search_query': NON descrivere l'emozione moderna. NON inserire il nome dell'emozione. NON usare parole non presenti nella teoria dei colori.
+La query deve essere una stringa composta SOLO da parole chiave goethiane, separate da virgole.
 
-Esempio:
+VOCABOLARIO OBBLIGATORIO PER LA QUERY:
+- Se la polarità è "plus", la query DEVE iniziare con: "luce e calore"
+  e deve contenere almeno queste parole: "sole", "energia", "attivita", "vitalita", "forza", "fuoco".
+  Non usare MAI nella query plus: "blu", "ombra", "freddo", "oscurita", "malinconia", "lontananza".
+- Se la polarità è "minus", la query DEVE iniziare con: "ombra e freddo"
+  e deve contenere almeno queste parole: "oscurita", "lontananza", "solitudine", "malinconia", "inquietante".
+  Non usare MAI nella query minus: "luce", "calore", "sole", "energia", "fuoco".
+- Se la polarità è "neutral", la query DEVE iniziare con: "equilibrio e quiete"
+  e deve contenere: "soddisfazione", "natura", "riposo".
+
+Esempi obbligatori:
+Input: "Sono in piena euforia"
+Output: {"emozione": "Euforia", "polarita": "plus", "search_query": "luce e calore, sole, energia, attivita, vitalita, forza, fuoco, gioioso, eccitante"}
+
 Input: "Mi sento soffocare dal vuoto"
-Output: {"emozione": "Angoscia", "polarita": "minus", "search_query": "colori freddi legati al vuoto e all'angoscia"}
+Output: {"emozione": "Angoscia", "polarita": "minus", "search_query": "ombra e freddo, oscurita, lontananza, solitudine, malinconia, inquietante, dolorosa, lato del meno"}
 """
 
     # 1. Effettuiamo la chiamata a Ollama e chiudiamo correttamente la parentesi
@@ -44,4 +70,4 @@ Output: {"emozione": "Angoscia", "polarita": "minus", "search_query": "colori fr
 
     # 2. Ora estraiamo la stringa e la validiamo
     json_string = response['message']['content']
-    return GoetheQueryExtractor.model_validate_json(json_string)
+    return _force_goethe_query(GoetheQueryExtractor.model_validate_json(json_string))

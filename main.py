@@ -14,6 +14,35 @@ from goetheColor import parse_emotion
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "chroma_db")
 
+PLUS_SECTIONS = (
+    "== GIALLO ==",
+    "== ROSSO-GIALLO",
+    "== ROSSO ==",
+    "== GIALLO-ROSSO",
+)
+MINUS_SECTIONS = (
+    "== BLU ==",
+    "== AZZURRO ==",
+    "== VIOLETTO ==",
+)
+NEUTRAL_SECTIONS = ("== VERDE ==",)
+
+def filter_docs_by_polarity(docs: List[str], polarity: str) -> List[str]:
+    allowed_sections = {
+        "plus": PLUS_SECTIONS,
+        "minus": MINUS_SECTIONS,
+        "neutral": NEUTRAL_SECTIONS,
+    }.get(polarity)
+
+    if not allowed_sections:
+        return docs
+
+    filtered_docs = [
+        doc for doc in docs
+        if doc.strip().startswith(allowed_sections)
+    ]
+    return filtered_docs or docs
+
 def get_collection():
     """Funzione che recupera il database in modo sicuro al momento del bisogno"""
     try:
@@ -86,7 +115,7 @@ async def sonify_emotion(request: SonifyRequest) -> SonifyResponse:
         # Chiediamo a Chroma di restituirci anche le distanze (minore = più simile)
         risultati_ricerca = collection.query(
             query_embeddings=[query_embedding],
-            n_results=2,
+            n_results=4,
             include=["documents", "distances"] # <-- Aggiungi "distances" qui
         )
         
@@ -99,7 +128,8 @@ async def sonify_emotion(request: SonifyRequest) -> SonifyResponse:
         docs = risultati_ricerca.get("documents")
         
         if docs is not None and len(docs) > 0 and docs[0] is not None and len(docs[0]) > 0:
-            contesto_goethe = "\n\n".join(docs[0])
+            docs_filtrati = filter_docs_by_polarity(docs[0], risultato_nlp.polarita.value)
+            contesto_goethe = "\n\n".join(docs_filtrati)
             print("\n--- CONTESTO RAG TROVATO ---", flush=True)
             print(contesto_goethe[:100] + "...", flush=True) # Stampa solo i primi 100 caratteri
         else:
