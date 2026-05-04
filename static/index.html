@@ -11,7 +11,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 
-    <!-- Google Font: Inter -->
+    <!-- Google Font: Inter & Playfair Display -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -205,6 +205,8 @@
             padding: 40px;
             backdrop-filter: blur(24px);
             -webkit-backdrop-filter: blur(24px);
+            position: relative;
+            z-index: 2;
         }
 
         /* Label della textarea */
@@ -309,67 +311,169 @@
         }
 
         /* ============================================================
-       AREA RISULTATO
+       AREA RISULTATO (Staggered Animations)
     ============================================================ */
         #result-area {
             margin-top: 40px;
             width: 100%;
             max-width: 680px;
-            opacity: 0;
-            transform: translateY(16px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
             pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
 
-        /* Stato "visibile" del result area */
+        /* Shared animation logic for children */
+        .stagger-item {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
         #result-area.visible {
-            opacity: 1;
-            transform: translateY(0);
             pointer-events: auto;
         }
 
-        /* Chip colore — mostra l'HEX con un badge colorato */
-        .color-chip {
+        #result-area.visible .stagger-item {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Stagger Delays */
+        #result-area.visible .delay-1 {
+            transition-delay: 0.1s;
+        }
+
+        #result-area.visible .delay-2 {
+            transition-delay: 0.25s;
+        }
+
+        #result-area.visible .delay-3 {
+            transition-delay: 0.4s;
+        }
+
+        #result-area.visible .delay-4 {
+            transition-delay: 0.5s;
+        }
+
+        /* Elegante Dashboard Dati */
+        .elegant-data-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px 24px;
+            backdrop-filter: blur(16px);
+            gap: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .color-chip-group {
             display: flex;
             align-items: center;
             gap: 14px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px 20px;
-            backdrop-filter: blur(12px);
-            margin-bottom: 16px;
         }
 
         .color-swatch {
-            width: 38px;
-            height: 38px;
+            width: 42px;
+            height: 42px;
             border-radius: 50%;
             flex-shrink: 0;
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.15);
             transition: background-color var(--transition-color);
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Glowing aura around color swatch */
+        .color-swatch-glow {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            filter: blur(15px);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .is-playing .color-swatch-glow {
+            opacity: 0.8;
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0.4;
+            }
+
+            50% {
+                transform: translate(-50%, -50%) scale(1.5);
+                opacity: 0.9;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 0.4;
+            }
         }
 
         .color-info {
             display: flex;
             flex-direction: column;
             gap: 2px;
+            z-index: 2;
         }
 
-        .color-label {
-            font-size: 0.7rem;
+        .elegant-label {
+            font-size: 0.72rem;
             font-weight: 500;
             letter-spacing: 0.2em;
             text-transform: uppercase;
             color: var(--text-muted);
         }
 
-        .color-hex {
-            font-size: 1.1rem;
+        .elegant-val {
+            font-size: 1.15rem;
             font-weight: 500;
             color: var(--text-primary);
             font-variant-numeric: tabular-nums;
             transition: color 0.5s ease;
+        }
+
+        .metric-group {
+            display: flex;
+            gap: 32px;
+            align-items: center;
+            z-index: 2;
+        }
+
+        .metric {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            text-align: right;
+        }
+
+        /* Oscilloscope integrato fluidamente */
+        #oscilloscope {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            width: 100%;
+            height: 40px;
+            opacity: 0.6;
+            z-index: 1;
+            pointer-events: none;
         }
 
         /* Citazione di Goethe */
@@ -377,15 +481,15 @@
             background: var(--surface);
             border: 1px solid var(--border);
             border-left: 3px solid var(--accent);
-            border-radius: 10px;
+            border-radius: var(--radius);
             padding: 24px 28px;
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(16px);
         }
 
         .quote-text {
             font-family: 'Playfair Display', serif;
             font-style: italic;
-            font-size: 1.05rem;
+            font-size: 1.1rem;
             line-height: 1.8;
             color: var(--text-primary);
         }
@@ -394,10 +498,9 @@
         .artistic-box {
             background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: var(--radius);
             padding: 24px 28px;
-            margin-top: 16px;
-            backdrop-filter: blur(12px);
+            backdrop-filter: blur(16px);
             position: relative;
             overflow: hidden;
         }
@@ -426,27 +529,27 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
-            margin-top: 24px;
-            padding: 12px 24px;
+            padding: 14px 24px;
             background: rgba(255, 255, 255, 0.05);
             border: 1px solid var(--border);
-            border-radius: 8px;
+            border-radius: var(--radius);
             color: var(--text-primary);
             font-family: 'Inter', sans-serif;
             font-size: 0.85rem;
             cursor: pointer;
             transition: all 0.2s ease;
             width: 100%;
+            backdrop-filter: blur(10px);
         }
 
         .replay-btn:hover {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.3);
-            transform: translateY(-1px);
+            transform: translateY(-2px);
         }
 
         /* ============================================================
-       LOADING SPINNER (dentro il pulsante)
+       LOADING SPINNER
     ============================================================ */
         #sonify-btn .spinner {
             display: inline-block;
@@ -483,7 +586,7 @@
 <body>
 
     <!-- ============================================================
-       SFERE BLOB DI SFONDO
+       SFERE BLOB DI SFONDO (RIPRISTINATE!)
   ============================================================ -->
     <div class="blob-container" aria-hidden="true">
         <div class="blob blob-1" id="blob1"></div>
@@ -495,7 +598,6 @@
        PAGINA PRINCIPALE
   ============================================================ -->
     <main class="page">
-
         <!-- Header -->
         <header>
             <h1 class="logo"><span>Aisthesis</span></h1>
@@ -503,56 +605,74 @@
         </header>
 
         <!-- Card input -->
-        <section class="card" aria-label="Input emotivo">
+        <section class="card" aria-label="Input collegato alla semantica testuale">
             <label class="input-label" for="emotion-input">Descrivi la tua emozione</label>
-            <textarea id="emotion-input"
-                placeholder="Es. Una malinconia silenziosa, come un cielo grigio prima della pioggia..."
+            <textarea id="emotion-input" placeholder="Un brivido dorato nell'alba, come il silenzio della collina..."
                 aria-label="Campo di testo per l'emozione"></textarea>
 
             <div class="btn-row">
                 <button id="sonify-btn" class="btn-primary" onclick="handleSonify()">
                     Sonifica l'Emozione
                 </button>
-                <button class="btn-secondary" onclick="insertRandomEmotion()" aria-label="Inserisci una frase casuale">
-                    Non so come mi sento
+                <button class="btn-secondary" onclick="insertRandomEmotion()" aria-label="Inserisci seme casuale">
+                    Seme Casuale
                 </button>
             </div>
         </section>
 
-        <!-- Area risultato (inizialmente nascosta) -->
+        <!-- Area risultato (Staggered Animation) -->
         <section id="result-area" aria-live="polite" aria-label="Risultato della sonificazione">
-            <!-- Chip con il colore ricevuto -->
-            <div class="color-chip">
-                <div class="color-swatch" id="color-swatch"></div>
-                <div class="color-info">
-                    <span class="color-label">Colore Goethiano</span>
-                    <span class="color-hex" id="color-hex-text">—</span>
+
+            <!-- Elegant Data Dashboard -->
+            <div class="elegant-data-row stagger-item delay-1" id="data-container">
+                <div class="color-swatch-glow" id="swatch-glow"></div>
+                <div class="color-chip-group">
+                    <div class="color-swatch" id="color-swatch"></div>
+                    <div class="color-info">
+                        <span class="elegant-label">Colore Goethiano</span>
+                        <span class="elegant-val" id="data-hex">—</span>
+                    </div>
                 </div>
+
+                <div class="metric-group">
+                    <div class="metric">
+                        <span class="elegant-label">Armonia</span>
+                        <span class="elegant-val" id="data-freq">—</span>
+                    </div>
+                    <div class="metric">
+                        <span class="elegant-label">Tessitura Sonora</span>
+                        <span class="elegant-val" id="data-wave"
+                            style="text-size: 0.95rem; font-style: italic;">—</span>
+                    </div>
+                </div>
+
+                <!-- Fluid Background Oscilloscope (Ethereal style) -->
+                <canvas id="oscilloscope"></canvas>
             </div>
 
             <!-- Citazione di Goethe -->
-            <div class="quote-box">
+            <div class="quote-box stagger-item delay-2">
                 <p class="quote-text" id="quote-text">...</p>
             </div>
 
             <!-- Descrizione artistica -->
-            <div class="artistic-box">
+            <div class="artistic-box stagger-item delay-3">
                 <p class="artistic-text" id="artistic-text">...</p>
             </div>
 
-            <button id="replay-btn" class="replay-btn" onclick="replaySound()" aria-label="Riascolta Suono">
+            <button id="replay-btn" class="replay-btn stagger-item delay-4" onclick="replaySound()"
+                aria-label="Riascolta Sequenza">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
                     <polygon points="5 3 19 12 5 21 5 3"></polygon>
                 </svg>
-                Riascolta Suono
+                Riascolta l'Emozione
             </button>
         </section>
 
         <footer>
             <p>Progetto universitario · Aisthesis v0.1</p>
         </footer>
-
     </main>
 
     <!-- ============================================================
@@ -562,7 +682,7 @@
         "use strict";
 
         // ------------------------------------------------------------------
-        // FRASI CASUALI — usate dal pulsante "Non so come mi sento"
+        // FRASI CASUALI
         // ------------------------------------------------------------------
         const RANDOM_EMOTIONS = [
             "Una malinconia fredda nel blu profondo, come un lago immobile al tramonto.",
@@ -572,40 +692,88 @@
             "Una nostalgia violacea e dolce, il profumo di qualcosa che non si riesce a ricordare.",
         ];
 
-        /**
-         * Inserisce una frase emotiva casuale nella textarea.
-         */
         function insertRandomEmotion() {
             const textarea = document.getElementById("emotion-input");
             const idx = Math.floor(Math.random() * RANDOM_EMOTIONS.length);
             textarea.value = RANDOM_EMOTIONS[idx];
-            // Anima il bordo della textarea per feedback visivo
             textarea.focus();
-            textarea.style.borderColor = "rgba(201, 169, 110, 0.6)";
+            textarea.style.borderColor = "var(--accent)";
             setTimeout(() => { textarea.style.borderColor = ""; }, 1200);
         }
 
         // ------------------------------------------------------------------
-        // WEB AUDIO API — Istanza AudioContext globale
+        // WEB AUDIO API & ONDA ETREA
         // ------------------------------------------------------------------
         let audioCtx = null;
+        let analyser = null;
         let activeNodes = [];
         let lastMelody = null;
+        let animFrameId = null;
 
-        /**
-         * Suona una melodia dinamica di note 
-         *
-         * @param {Array} melody - Array di {freq, duration, wave}
-         */
-        function playMelody(melody) {
-            if (!melody || !melody.length) return;
-
-            // Crea il contesto audio al primo utilizzo
+        function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 1024;
+                analyser.connect(audioCtx.destination);
+                drawEtherealOscilloscope();
             }
+        }
 
-            // Ferma le note precedenti.
+        // Oscilloscopio fluido ed "etereo"
+        function drawEtherealOscilloscope() {
+            const canvas = document.getElementById("oscilloscope");
+            const canvasCtx = canvas.getContext("2d");
+
+            canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+            canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            function draw() {
+                animFrameId = requestAnimationFrame(draw);
+                analyser.getByteTimeDomainData(dataArray);
+
+                // Pulisce il canvas
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+
+                canvasCtx.lineWidth = 2.5 * window.devicePixelRatio;
+                // Onda morbida bianca
+                canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                canvasCtx.beginPath();
+
+                const sliceWidth = canvas.width * 1.0 / bufferLength;
+                let x = 0;
+
+                for (let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i] / 128.0;
+                    // L'onda appare solo in basso fluidamente
+                    const y = (v * (canvas.height / 2)) + (canvas.height / 4);
+
+                    if (i === 0) { canvasCtx.moveTo(x, y); }
+                    else { canvasCtx.lineTo(x, y); }
+                    x += sliceWidth;
+                }
+                canvasCtx.lineTo(canvas.width, canvas.height / 2);
+                canvasCtx.stroke();
+            }
+            draw();
+        }
+
+        let isPlaying = false;
+
+        function setIsPlaying(val) {
+            isPlaying = val;
+            const container = document.getElementById('data-container');
+            if (isPlaying) container.classList.add('is-playing');
+            else container.classList.remove('is-playing');
+        }
+
+        function playMelody(melody) {
+            if (!melody || !melody.length) return;
+            initAudio();
+
             activeNodes.forEach(n => {
                 try {
                     n.gain.cancelScheduledValues(audioCtx.currentTime);
@@ -615,7 +783,10 @@
             });
             activeNodes = [];
 
-            let startTime = audioCtx.currentTime + 0.1; // Partenza leggermente ritardata.
+            let startTime = audioCtx.currentTime + 0.1;
+            setIsPlaying(true);
+
+            let maxTime = startTime;
 
             melody.forEach(note => {
                 const osc = audioCtx.createOscillator();
@@ -625,7 +796,6 @@
                 const gainNode = audioCtx.createGain();
                 gainNode.gain.setValueAtTime(0, startTime);
 
-                // L'inviluppo
                 const attackEnd = startTime + (note.duration * 0.2);
                 gainNode.gain.linearRampToValueAtTime(0.25, attackEnd);
 
@@ -636,15 +806,21 @@
                 gainNode.gain.linearRampToValueAtTime(0, noteEnd);
 
                 osc.connect(gainNode);
-                gainNode.connect(audioCtx.destination);
+                gainNode.connect(analyser);
 
                 osc.start(startTime);
                 osc.stop(noteEnd + 0.1);
 
                 activeNodes.push({ osc, gain: gainNode.gain });
+                startTime += note.duration + 0.05;
 
-                startTime += note.duration + 0.05; // Gap minimo
+                if (noteEnd > maxTime) maxTime = noteEnd;
             });
+
+            // Disattiva il bagliore quando la melodia finisce
+            setTimeout(() => {
+                setIsPlaying(false);
+            }, (maxTime - audioCtx.currentTime) * 1000);
         }
 
         function replaySound() {
@@ -654,13 +830,8 @@
         }
 
         // ------------------------------------------------------------------
-        // AGGIORNAMENTO COLORI BLOB — cambia le sfere di sfondo
+        // AGGIORNAMENTO COLORI (BLOB E VARIABILI)
         // ------------------------------------------------------------------
-
-        /**
-         * Converte un colore HEX in un oggetto {r, g, b}.
-         * Usato per generare varianti delle sfere.
-         */
         function hexToRgb(hex) {
             const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
             if (!result) return { r: 100, g: 100, b: 200 };
@@ -671,46 +842,25 @@
             };
         }
 
-        /**
-         * Aggiorna il colore delle tre sfere blob a partire dall'HEX ricevuto.
-         * - blob1: colore originale (leggermente desaturato)
-         * - blob2: colore complementare approssimativo
-         * - blob3: variante più scura
-         *
-         * @param {string} hex - Colore HEX ricevuto dal backend (es. "#FF8C00")
-         */
         function updateBlobColors(hex) {
+            document.documentElement.style.setProperty('--accent', hex);
+
             const { r, g, b } = hexToRgb(hex);
 
-            // Blob 1: il colore principale con opacità ridotta
-            document.getElementById("blob1").style.backgroundColor =
-                `rgb(${r}, ${g}, ${b})`;
+            document.getElementById("blob1").style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
+            document.getElementById("blob2").style.backgroundColor = `rgb(${255 - r}, ${255 - g}, ${255 - b})`;
+            document.getElementById("blob3").style.backgroundColor = `rgb(${Math.floor(r * 0.5)}, ${Math.floor(g * 0.5)}, ${Math.floor(b * 0.5)})`;
 
-            // Blob 2: complementare approssimativo (255 - componente)
-            document.getElementById("blob2").style.backgroundColor =
-                `rgb(${255 - r}, ${255 - g}, ${255 - b})`;
-
-            // Blob 3: versione scura del colore principale (fattore 0.5)
-            document.getElementById("blob3").style.backgroundColor =
-                `rgb(${Math.floor(r * 0.5)}, ${Math.floor(g * 0.5)}, ${Math.floor(b * 0.5)})`;
-
-            // Applica una sfumatura all'intero sfondo (body)
-            document.body.style.transition = "background-color 2.5s ease";
-            document.body.style.backgroundColor = `rgba(${r}, ${g}, ${b}, 0.08)`;
+            document.getElementById("swatch-glow").style.backgroundColor = hex;
         }
 
         // ------------------------------------------------------------------
-        // LOGICA PRINCIPALE — click su "Sonifica l'Emozione"
+        // LOGICA PRINCIPALE
         // ------------------------------------------------------------------
-
-        /**
-         * Gestisce la chiamata all'endpoint /sonify e aggiorna l'intera UI.
-         */
         async function handleSonify() {
             const textarea = document.getElementById("emotion-input");
             const text = textarea.value.trim();
 
-            // Validazione: il campo non può essere vuoto
             if (!text) {
                 textarea.focus();
                 textarea.style.borderColor = "rgba(200, 60, 60, 0.7)";
@@ -718,52 +868,59 @@
                 return;
             }
 
-            // --- Stato di caricamento ---
             const btn = document.getElementById("sonify-btn");
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner"></span> In ascolto...';
 
             try {
-                // --- Fetch POST a /sonify ---
+                // Rimuovi visibilità per re-trigger l'animazione sfalsata
+                document.getElementById("result-area").classList.remove("visible");
+
                 const response = await fetch("/sonify", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text }),
                 });
 
-                if (!response.ok) {
-                    throw new Error(`Errore HTTP: ${response.status}`);
-                }
+                if (!response.ok) throw new Error(`Errore HTTP: ${response.status}`);
 
                 const data = await response.json();
-                // data = { hex: "...", freq: ..., wave: "...", quote: "..." }
 
-                // 1. Aggiorna i colori delle sfere blob di sfondo
                 updateBlobColors(data.hex);
 
-                // 2. Aggiorna il chip colore e il testo HEX
+                // Aggiorna eleganti dati scientifici
                 document.getElementById("color-swatch").style.backgroundColor = data.hex;
-                document.getElementById("color-hex-text").textContent = data.hex.toUpperCase();
+                document.getElementById("data-hex").textContent = data.hex.toUpperCase();
+                document.getElementById("data-freq").textContent = data.freq.toFixed(1) + " Hz";
 
-                // 3. Mostra la citazione di Goethe e la descrizione artistica
+                // Valorizzazione artistica della forma d'onda ("Forma")
+                const waveTranslations = {
+                    'sine': 'Pura e Sinuosa',
+                    'triangle': 'Cristallina e Delicata',
+                    'square': 'Profonda e Vibrante',
+                    'sawtooth': 'Ruvida e Tagliente'
+                };
+                const waveArtistic = waveTranslations[data.wave.toLowerCase()] || data.wave;
+                document.getElementById("data-wave").textContent = waveArtistic;
+
                 document.getElementById("quote-text").textContent = data.quote;
 
                 if (data.artistic_description) {
                     document.getElementById("artistic-text").textContent = data.artistic_description;
                 }
 
-                // 4. Rendi visibile l'area risultato con animazione
-                document.getElementById("result-area").classList.add("visible");
+                // Aspetta un istante, e attiva l'animazione d'ingresso sfalsata
+                setTimeout(() => {
+                    document.getElementById("result-area").classList.add("visible");
 
-                // 5. Suona la melodia
-                if (data.melody) {
-                    lastMelody = data.melody;
-                    playMelody(data.melody);
-                } else if (data.freq) {
-                    // Fallback a melodia singola
-                    lastMelody = [{ freq: data.freq, duration: 5.0, wave: data.wave || 'sine' }];
-                    playMelody(lastMelody);
-                }
+                    if (data.melody) {
+                        lastMelody = data.melody;
+                        playMelody(data.melody);
+                    } else if (data.freq) {
+                        lastMelody = [{ freq: data.freq, duration: 5.0, wave: data.wave || 'sine' }];
+                        playMelody(lastMelody);
+                    }
+                }, 200);
 
             } catch (error) {
                 console.error("Errore durante la sonificazione:", error);
@@ -771,13 +928,11 @@
                     "Errore di connessione. Assicurati che il backend sia avviato.";
                 document.getElementById("result-area").classList.add("visible");
             } finally {
-                // Ripristina il pulsante in ogni caso
                 btn.disabled = false;
                 btn.innerHTML = "Sonifica l'Emozione";
             }
         }
 
-        // Permette di inviare il form anche premendo Ctrl+Enter nella textarea
         document.getElementById("emotion-input").addEventListener("keydown", (e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                 e.preventDefault();
