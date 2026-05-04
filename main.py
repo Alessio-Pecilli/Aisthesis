@@ -9,8 +9,10 @@ e il test del frontend in modo completamente indipendente.
 """
 
 from fastapi import FastAPI
+from fastapi.responses import RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from typing import List, Dict, Any
 
 # --- Inizializzazione dell'app ---
 app = FastAPI(
@@ -21,8 +23,18 @@ app = FastAPI(
 
 # --- Mounting del frontend statico ---
 # Tutti i file in ./static/ verranno serviti direttamente da FastAPI.
-# index.html sarà raggiungibile su http://127.0.0.1:8000/
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
+
+# --- Root & Favicon Handlers ---
+@app.get("/", include_in_schema=False)
+async def root():
+    """Reindirizza l'indirizzo base (/) al file static/index.html"""
+    return RedirectResponse(url="/static/index.html")
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """Serve la favicon personalizzata per il browser"""
+    return FileResponse("static/favicon.svg")
 
 
 # --- Modelli Pydantic ---
@@ -37,6 +49,8 @@ class SonifyResponse(BaseModel):
     freq: float
     wave: str
     quote: str
+    artistic_description: str
+    melody: List[Dict[str, Any]]
 
 
 # ===========================================================================
@@ -68,6 +82,19 @@ async def sonify_emotion(request: SonifyRequest) -> SonifyResponse:
             "come la luce del sole al tramonto. Stimola l'attività e la vitalità, "
             "ma può diventare opprimente nella sua intensità. — Goethe, Farbenlehre"
         ),
+        artistic_description=(
+            "L'orizzonte si incendia di sfumature d'arancio vibrante, risvegliando un formicolio di "
+            "energia creativa e calore profondo. Come brace che riprende vita, il colore danza nella "
+            "mente, accendendo la vitalità assopita."
+        ),
+        melody=[
+            {"freq": 330.0, "duration": 0.5, "wave": "sine"},
+            {"freq": 392.0, "duration": 0.5, "wave": "sine"},
+            {"freq": 440.0, "duration": 0.5, "wave": "sine"},
+            {"freq": 523.25, "duration": 1.0, "wave": "triangle"},
+            {"freq": 440.0, "duration": 0.5, "wave": "sine"},
+            {"freq": 392.0, "duration": 1.5, "wave": "sine"}
+        ]
     )
     return mock_response
     # -----------------------------------------------------------------------

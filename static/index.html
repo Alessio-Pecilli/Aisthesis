@@ -1,654 +1,790 @@
 <!DOCTYPE html>
 <html lang="it">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Aisthesis — Sonificazione Semantica</title>
-  <meta name="description" content="Trasforma le tue emozioni in colori e suoni attraverso la Teoria dei Colori di Goethe." />
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aisthesis — Sonificazione Semantica</title>
+    <meta name="description"
+        content="Trasforma le tue emozioni in colori e suoni attraverso la Teoria dei Colori di Goethe." />
 
-  <!-- Google Font: Inter -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
 
-  <style>
-    /* ============================================================
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;1,400&display=swap"
+        rel="stylesheet" />
+
+    <style>
+        /* ============================================================
        RESET & VARIABILI
     ============================================================ */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      --bg: #0a0a0f;
-      --surface: rgba(255, 255, 255, 0.04);
-      --border: rgba(255, 255, 255, 0.08);
-      --text-primary: #f0eee8;
-      --text-muted: rgba(240, 238, 232, 0.45);
-      --accent: #c9a96e;
-      --blob-1: #7b3fc4;
-      --blob-2: #1a6e8a;
-      --blob-3: #c4503f;
-      --radius: 16px;
-      --transition-color: 2.5s ease;
-    }
-
-    html, body {
-      min-height: 100%;
-      background-color: var(--bg);
-      color: var(--text-primary);
-      font-family: 'Inter', sans-serif;
-      overflow-x: hidden;
-    }
-
-    /* ============================================================
-       SFERE BLOB — effetto sfondo ambientale
-    ============================================================ */
-    .blob-container {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 0;
-      overflow: hidden;
-    }
-
-    /* Ogni sfera è un div colorato, molto sfocato, che fluttua lentamente */
-    .blob {
-      position: absolute;
-      width: 520px;
-      height: 520px;
-      border-radius: 50%;
-      filter: blur(120px);
-      opacity: 0.55;
-      /* La proprietà background-color viene animata via JS quando arriva il colore */
-      transition: background-color var(--transition-color);
-      will-change: transform;
-    }
-
-    /* Posizioni di partenza delle sfere */
-    .blob-1 {
-      background-color: var(--blob-1);
-      top: -15%;
-      left: -10%;
-      animation: float1 18s ease-in-out infinite;
-    }
-    .blob-2 {
-      background-color: var(--blob-2);
-      bottom: -20%;
-      right: -10%;
-      animation: float2 22s ease-in-out infinite;
-    }
-    .blob-3 {
-      background-color: var(--blob-3);
-      top: 40%;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 380px;
-      height: 380px;
-      animation: float3 14s ease-in-out infinite;
-    }
-
-    /* Keyframes per la fluttuazione delle sfere */
-    @keyframes float1 {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      33%       { transform: translate(60px, 40px) scale(1.07); }
-      66%       { transform: translate(-30px, 70px) scale(0.96); }
-    }
-    @keyframes float2 {
-      0%, 100% { transform: translate(0, 0) scale(1); }
-      40%       { transform: translate(-80px, -50px) scale(1.1); }
-      70%       { transform: translate(40px, -30px) scale(0.93); }
-    }
-    @keyframes float3 {
-      0%, 100% { transform: translateX(-50%) scale(1); }
-      50%       { transform: translateX(-50%) scale(1.15) translateY(-40px); }
-    }
-
-    /* ============================================================
-       LAYOUT PRINCIPALE
-    ============================================================ */
-    .page {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-      padding: 60px 20px 80px;
-    }
-
-    /* ============================================================
-       HEADER / TITOLO
-    ============================================================ */
-    header {
-      text-align: center;
-      margin-bottom: 56px;
-    }
-
-    .logo {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(3rem, 8vw, 5.5rem);
-      font-weight: 400;
-      letter-spacing: 0.06em;
-      color: var(--text-primary);
-      line-height: 1;
-    }
-
-    .logo span {
-      /* Sottolineatura dorata animata */
-      display: inline-block;
-      border-bottom: 2px solid var(--accent);
-      padding-bottom: 6px;
-    }
-
-    .subtitle {
-      margin-top: 14px;
-      font-size: 0.85rem;
-      font-weight: 300;
-      letter-spacing: 0.25em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-    }
-
-    /* ============================================================
-       CARD CENTRALE
-    ============================================================ */
-    .card {
-      width: 100%;
-      max-width: 680px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 40px;
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-    }
-
-    /* Label della textarea */
-    .input-label {
-      display: block;
-      font-size: 0.75rem;
-      font-weight: 500;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    /* Textarea per l'input emotivo */
-    #emotion-input {
-      width: 100%;
-      min-height: 130px;
-      resize: vertical;
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px 18px;
-      color: var(--text-primary);
-      font-family: 'Inter', sans-serif;
-      font-size: 1rem;
-      font-weight: 300;
-      line-height: 1.7;
-      outline: none;
-      transition: border-color 0.3s ease, box-shadow 0.3s ease;
-    }
-
-    #emotion-input::placeholder {
-      color: var(--text-muted);
-    }
-
-    #emotion-input:focus {
-      border-color: rgba(201, 169, 110, 0.5);
-      box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.08);
-    }
-
-    /* Riga dei pulsanti */
-    .btn-row {
-      display: flex;
-      gap: 14px;
-      margin-top: 22px;
-      flex-wrap: wrap;
-    }
-
-    /* Pulsante primario — Sonifica */
-    .btn-primary {
-      flex: 1;
-      min-width: 200px;
-      padding: 15px 28px;
-      background: linear-gradient(135deg, #c9a96e 0%, #a07840 100%);
-      color: #18120a;
-      font-family: 'Inter', sans-serif;
-      font-size: 0.95rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-    }
-
-    .btn-primary:hover {
-      opacity: 0.9;
-      transform: translateY(-2px);
-      box-shadow: 0 8px 32px rgba(201, 169, 110, 0.3);
-    }
-
-    .btn-primary:active {
-      transform: translateY(0);
-    }
-
-    .btn-primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-      transform: none;
-    }
-
-    /* Pulsante secondario — Non so come mi sento */
-    .btn-secondary {
-      padding: 15px 20px;
-      background: transparent;
-      color: var(--text-muted);
-      font-family: 'Inter', sans-serif;
-      font-size: 0.82rem;
-      font-weight: 400;
-      letter-spacing: 0.03em;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
-    }
-
-    .btn-secondary:hover {
-      color: var(--text-primary);
-      border-color: rgba(255, 255, 255, 0.2);
-      background: rgba(255, 255, 255, 0.04);
-    }
-
-    /* ============================================================
-       AREA RISULTATO
-    ============================================================ */
-    #result-area {
-      margin-top: 40px;
-      width: 100%;
-      max-width: 680px;
-      opacity: 0;
-      transform: translateY(16px);
-      transition: opacity 0.6s ease, transform 0.6s ease;
-      pointer-events: none;
-    }
-
-    /* Stato "visibile" del result area */
-    #result-area.visible {
-      opacity: 1;
-      transform: translateY(0);
-      pointer-events: auto;
-    }
-
-    /* Chip colore — mostra l'HEX con un badge colorato */
-    .color-chip {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 14px 20px;
-      backdrop-filter: blur(12px);
-      margin-bottom: 16px;
-    }
-
-    .color-swatch {
-      width: 38px;
-      height: 38px;
-      border-radius: 50%;
-      flex-shrink: 0;
-      border: 2px solid rgba(255, 255, 255, 0.1);
-      transition: background-color var(--transition-color);
-    }
-
-    .color-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .color-label {
-      font-size: 0.7rem;
-      font-weight: 500;
-      letter-spacing: 0.2em;
-      text-transform: uppercase;
-      color: var(--text-muted);
-    }
-
-    .color-hex {
-      font-size: 1.1rem;
-      font-weight: 500;
-      color: var(--text-primary);
-      font-variant-numeric: tabular-nums;
-      transition: color 0.5s ease;
-    }
-
-    /* Citazione di Goethe */
-    .quote-box {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-left: 3px solid var(--accent);
-      border-radius: 10px;
-      padding: 24px 28px;
-      backdrop-filter: blur(12px);
-    }
-
-    .quote-text {
-      font-family: 'Playfair Display', serif;
-      font-style: italic;
-      font-size: 1.05rem;
-      line-height: 1.8;
-      color: var(--text-primary);
-    }
-
-    /* ============================================================
-       LOADING SPINNER (dentro il pulsante)
-    ============================================================ */
-    #sonify-btn .spinner {
-      display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(24, 18, 10, 0.4);
-      border-top-color: #18120a;
-      border-radius: 50%;
-      animation: spin 0.7s linear infinite;
-      vertical-align: middle;
-      margin-right: 8px;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* ============================================================
-       FOOTER
-    ============================================================ */
-    footer {
-      margin-top: 60px;
-      font-size: 0.72rem;
-      letter-spacing: 0.15em;
-      text-transform: uppercase;
-      color: rgba(240, 238, 232, 0.2);
-      text-align: center;
-    }
-  </style>
-</head>
-<body>
-
-  <!-- ============================================================
-       SFERE BLOB DI SFONDO
-  ============================================================ -->
-  <div class="blob-container" aria-hidden="true">
-    <div class="blob blob-1" id="blob1"></div>
-    <div class="blob blob-2" id="blob2"></div>
-    <div class="blob blob-3" id="blob3"></div>
-  </div>
-
-  <!-- ============================================================
-       PAGINA PRINCIPALE
-  ============================================================ -->
-  <main class="page">
-
-    <!-- Header -->
-    <header>
-      <h1 class="logo"><span>Aisthesis</span></h1>
-      <p class="subtitle">Sonificazione semantica · Teoria dei Colori di Goethe</p>
-    </header>
-
-    <!-- Card input -->
-    <section class="card" aria-label="Input emotivo">
-      <label class="input-label" for="emotion-input">Descrivi la tua emozione</label>
-      <textarea
-        id="emotion-input"
-        placeholder="Es. Una malinconia silenziosa, come un cielo grigio prima della pioggia..."
-        aria-label="Campo di testo per l'emozione"
-      ></textarea>
-
-      <div class="btn-row">
-        <button id="sonify-btn" class="btn-primary" onclick="handleSonify()">
-          Sonifica l'Emozione
-        </button>
-        <button class="btn-secondary" onclick="insertRandomEmotion()" aria-label="Inserisci una frase casuale">
-          Non so come mi sento
-        </button>
-      </div>
-    </section>
-
-    <!-- Area risultato (inizialmente nascosta) -->
-    <section id="result-area" aria-live="polite" aria-label="Risultato della sonificazione">
-      <!-- Chip con il colore ricevuto -->
-      <div class="color-chip">
-        <div class="color-swatch" id="color-swatch"></div>
-        <div class="color-info">
-          <span class="color-label">Colore Goethiano</span>
-          <span class="color-hex" id="color-hex-text">—</span>
-        </div>
-      </div>
-
-      <!-- Citazione di Goethe -->
-      <div class="quote-box">
-        <p class="quote-text" id="quote-text">...</p>
-      </div>
-    </section>
-
-    <footer>
-      <p>Progetto universitario · Aisthesis v0.1</p>
-    </footer>
-
-  </main>
-
-  <!-- ============================================================
-       JAVASCRIPT
-  ============================================================ -->
-  <script>
-    "use strict";
-
-    // ------------------------------------------------------------------
-    // FRASI CASUALI — usate dal pulsante "Non so come mi sento"
-    // ------------------------------------------------------------------
-    const RANDOM_EMOTIONS = [
-      "Una malinconia fredda nel blu profondo, come un lago immobile al tramonto.",
-      "Un'energia vibrante e accecante, il giallo del sole che brucia senza pietà.",
-      "Una quiete verde e silenziosa, la pace di un bosco dopo la pioggia.",
-      "Un ardore rosso e pulsante, la passione che non riesce a stare ferma.",
-      "Una nostalgia violacea e dolce, il profumo di qualcosa che non si riesce a ricordare.",
-    ];
-
-    /**
-     * Inserisce una frase emotiva casuale nella textarea.
-     */
-    function insertRandomEmotion() {
-      const textarea = document.getElementById("emotion-input");
-      const idx = Math.floor(Math.random() * RANDOM_EMOTIONS.length);
-      textarea.value = RANDOM_EMOTIONS[idx];
-      // Anima il bordo della textarea per feedback visivo
-      textarea.focus();
-      textarea.style.borderColor = "rgba(201, 169, 110, 0.6)";
-      setTimeout(() => { textarea.style.borderColor = ""; }, 1200);
-    }
-
-    // ------------------------------------------------------------------
-    // WEB AUDIO API — Istanza AudioContext globale
-    // ------------------------------------------------------------------
-    let audioCtx = null;
-    let currentGainNode = null;
-
-    /**
-     * Suona un tono con attacco e rilascio morbidi ("etereo") per evitare
-     * scoppiettii (click audio) e dare un effetto sognante.
-     *
-     * @param {number} freq - Frequenza in Hz
-     * @param {string} wave - Tipo di onda: "sine" | "square" | "sawtooth" | "triangle"
-     */
-    function playEtherealTone(freq, wave) {
-      // Crea il contesto audio al primo utilizzo (deve avvenire dopo un gesto utente)
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      }
-
-      // Ferma il suono precedente se ancora attivo
-      if (currentGainNode) {
-        const now = audioCtx.currentTime;
-        currentGainNode.gain.cancelScheduledValues(now);
-        currentGainNode.gain.setValueAtTime(currentGainNode.gain.value, now);
-        currentGainNode.gain.linearRampToValueAtTime(0, now + 0.3);
-      }
-
-      const now = audioCtx.currentTime;
-
-      // --- Oscillatore ---
-      const oscillator = audioCtx.createOscillator();
-      oscillator.type   = wave || "sine";
-      oscillator.frequency.setValueAtTime(freq, now);
-
-      // --- GainNode per l'inviluppo (ADSR semplificato) ---
-      const gainNode = audioCtx.createGain();
-      gainNode.gain.setValueAtTime(0, now);                          // Parte dal silenzio
-
-      // Attacco (fade-in): 2 secondi → volume 0.25
-      gainNode.gain.linearRampToValueAtTime(0.25, now + 2.0);
-
-      // Sustain: rimane stabile per 3 secondi
-      gainNode.gain.setValueAtTime(0.25, now + 5.0);
-
-      // Rilascio (fade-out): 2 secondi → silenzio
-      gainNode.gain.linearRampToValueAtTime(0, now + 7.0);
-
-      // --- Connessione del grafo audio ---
-      oscillator.connect(gainNode);
-      gainNode.connect(audioCtx.destination);
-
-      // Avvio e spegnimento automatico
-      oscillator.start(now);
-      oscillator.stop(now + 7.5);
-
-      currentGainNode = gainNode;
-    }
-
-    // ------------------------------------------------------------------
-    // AGGIORNAMENTO COLORI BLOB — cambia le sfere di sfondo
-    // ------------------------------------------------------------------
-
-    /**
-     * Converte un colore HEX in un oggetto {r, g, b}.
-     * Usato per generare varianti delle sfere.
-     */
-    function hexToRgb(hex) {
-      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-      if (!result) return { r: 100, g: 100, b: 200 };
-      return {
-        r: parseInt(result[1], 16),
-        g: parseInt(result[2], 16),
-        b: parseInt(result[3], 16),
-      };
-    }
-
-    /**
-     * Aggiorna il colore delle tre sfere blob a partire dall'HEX ricevuto.
-     * - blob1: colore originale (leggermente desaturato)
-     * - blob2: colore complementare approssimativo
-     * - blob3: variante più scura
-     *
-     * @param {string} hex - Colore HEX ricevuto dal backend (es. "#FF8C00")
-     */
-    function updateBlobColors(hex) {
-      const { r, g, b } = hexToRgb(hex);
-
-      // Blob 1: il colore principale con opacità ridotta
-      document.getElementById("blob1").style.backgroundColor =
-        `rgb(${r}, ${g}, ${b})`;
-
-      // Blob 2: complementare approssimativo (255 - componente)
-      document.getElementById("blob2").style.backgroundColor =
-        `rgb(${255 - r}, ${255 - g}, ${255 - b})`;
-
-      // Blob 3: versione scura del colore principale (fattore 0.5)
-      document.getElementById("blob3").style.backgroundColor =
-        `rgb(${Math.floor(r * 0.5)}, ${Math.floor(g * 0.5)}, ${Math.floor(b * 0.5)})`;
-    }
-
-    // ------------------------------------------------------------------
-    // LOGICA PRINCIPALE — click su "Sonifica l'Emozione"
-    // ------------------------------------------------------------------
-
-    /**
-     * Gestisce la chiamata all'endpoint /sonify e aggiorna l'intera UI.
-     */
-    async function handleSonify() {
-      const textarea = document.getElementById("emotion-input");
-      const text = textarea.value.trim();
-
-      // Validazione: il campo non può essere vuoto
-      if (!text) {
-        textarea.focus();
-        textarea.style.borderColor = "rgba(200, 60, 60, 0.7)";
-        setTimeout(() => { textarea.style.borderColor = ""; }, 1500);
-        return;
-      }
-
-      // --- Stato di caricamento ---
-      const btn = document.getElementById("sonify-btn");
-      btn.disabled = true;
-      btn.innerHTML = '<span class="spinner"></span> In ascolto...';
-
-      try {
-        // --- Fetch POST a /sonify ---
-        const response = await fetch("/sonify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text }),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Errore HTTP: ${response.status}`);
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
-        const data = await response.json();
-        // data = { hex: "...", freq: ..., wave: "...", quote: "..." }
+        :root {
+            --bg: #0a0a0f;
+            --surface: rgba(255, 255, 255, 0.04);
+            --border: rgba(255, 255, 255, 0.08);
+            --text-primary: #f0eee8;
+            --text-muted: rgba(240, 238, 232, 0.45);
+            --accent: #c9a96e;
+            --blob-1: #7b3fc4;
+            --blob-2: #1a6e8a;
+            --blob-3: #c4503f;
+            --radius: 16px;
+            --transition-color: 2.5s ease;
+        }
 
-        // 1. Aggiorna i colori delle sfere blob di sfondo
-        updateBlobColors(data.hex);
+        html,
+        body {
+            min-height: 100%;
+            background-color: var(--bg);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
 
-        // 2. Aggiorna il chip colore e il testo HEX
-        document.getElementById("color-swatch").style.backgroundColor = data.hex;
-        document.getElementById("color-hex-text").textContent = data.hex.toUpperCase();
+        /* ============================================================
+       SFERE BLOB — effetto sfondo ambientale
+    ============================================================ */
+        .blob-container {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
 
-        // 3. Mostra la citazione di Goethe
-        document.getElementById("quote-text").textContent = data.quote;
+        /* Ogni sfera è un div colorato, molto sfocato, che fluttua lentamente */
+        .blob {
+            position: absolute;
+            width: 520px;
+            height: 520px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.55;
+            /* La proprietà background-color viene animata via JS quando arriva il colore */
+            transition: background-color var(--transition-color);
+            will-change: transform;
+        }
 
-        // 4. Rendi visibile l'area risultato con animazione
-        document.getElementById("result-area").classList.add("visible");
+        /* Posizioni di partenza delle sfere */
+        .blob-1 {
+            background-color: var(--blob-1);
+            top: -15%;
+            left: -10%;
+            animation: float1 18s ease-in-out infinite;
+        }
 
-        // 5. Suona il tono etereo con i parametri ricevuti
-        playEtherealTone(data.freq, data.wave);
+        .blob-2 {
+            background-color: var(--blob-2);
+            bottom: -20%;
+            right: -10%;
+            animation: float2 22s ease-in-out infinite;
+        }
 
-      } catch (error) {
-        console.error("Errore durante la sonificazione:", error);
-        document.getElementById("quote-text").textContent =
-          "Errore di connessione. Assicurati che il backend sia avviato.";
-        document.getElementById("result-area").classList.add("visible");
-      } finally {
-        // Ripristina il pulsante in ogni caso
-        btn.disabled = false;
-        btn.innerHTML = "Sonifica l'Emozione";
-      }
-    }
+        .blob-3 {
+            background-color: var(--blob-3);
+            top: 40%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 380px;
+            height: 380px;
+            animation: float3 14s ease-in-out infinite;
+        }
 
-    // Permette di inviare il form anche premendo Ctrl+Enter nella textarea
-    document.getElementById("emotion-input").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-        e.preventDefault();
-        handleSonify();
-      }
-    });
-  </script>
+        /* Keyframes per la fluttuazione delle sfere */
+        @keyframes float1 {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            33% {
+                transform: translate(60px, 40px) scale(1.07);
+            }
+
+            66% {
+                transform: translate(-30px, 70px) scale(0.96);
+            }
+        }
+
+        @keyframes float2 {
+
+            0%,
+            100% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            40% {
+                transform: translate(-80px, -50px) scale(1.1);
+            }
+
+            70% {
+                transform: translate(40px, -30px) scale(0.93);
+            }
+        }
+
+        @keyframes float3 {
+
+            0%,
+            100% {
+                transform: translateX(-50%) scale(1);
+            }
+
+            50% {
+                transform: translateX(-50%) scale(1.15) translateY(-40px);
+            }
+        }
+
+        /* ============================================================
+       LAYOUT PRINCIPALE
+    ============================================================ */
+        .page {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 60px 20px 80px;
+        }
+
+        /* ============================================================
+       HEADER / TITOLO
+    ============================================================ */
+        header {
+            text-align: center;
+            margin-bottom: 56px;
+        }
+
+        .logo {
+            font-family: 'Playfair Display', serif;
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 400;
+            letter-spacing: 0.06em;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .logo span {
+            /* Sottolineatura dorata animata */
+            display: inline-block;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 6px;
+        }
+
+        .subtitle {
+            margin-top: 14px;
+            font-size: 0.85rem;
+            font-weight: 300;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        /* ============================================================
+       CARD CENTRALE
+    ============================================================ */
+        .card {
+            width: 100%;
+            max-width: 680px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 40px;
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+        }
+
+        /* Label della textarea */
+        .input-label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+
+        /* Textarea per l'input emotivo */
+        #emotion-input {
+            width: 100%;
+            min-height: 130px;
+            resize: vertical;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 18px;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 300;
+            line-height: 1.7;
+            outline: none;
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        #emotion-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        #emotion-input:focus {
+            border-color: rgba(201, 169, 110, 0.5);
+            box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.08);
+        }
+
+        /* Riga dei pulsanti */
+        .btn-row {
+            display: flex;
+            gap: 14px;
+            margin-top: 22px;
+            flex-wrap: wrap;
+        }
+
+        /* Pulsante primario — Sonifica */
+        .btn-primary {
+            flex: 1;
+            min-width: 200px;
+            padding: 15px 28px;
+            background: linear-gradient(135deg, #c9a96e 0%, #a07840 100%);
+            color: #18120a;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px rgba(201, 169, 110, 0.3);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Pulsante secondario — Non so come mi sento */
+        .btn-secondary {
+            padding: 15px 20px;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 400;
+            letter-spacing: 0.03em;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+
+        .btn-secondary:hover {
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        /* ============================================================
+       AREA RISULTATO
+    ============================================================ */
+        #result-area {
+            margin-top: 40px;
+            width: 100%;
+            max-width: 680px;
+            opacity: 0;
+            transform: translateY(16px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+            pointer-events: none;
+        }
+
+        /* Stato "visibile" del result area */
+        #result-area.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+
+        /* Chip colore — mostra l'HEX con un badge colorato */
+        .color-chip {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 20px;
+            backdrop-filter: blur(12px);
+            margin-bottom: 16px;
+        }
+
+        .color-swatch {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            transition: background-color var(--transition-color);
+        }
+
+        .color-info {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .color-label {
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .color-hex {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+            transition: color 0.5s ease;
+        }
+
+        /* Citazione di Goethe */
+        .quote-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
+            border-radius: 10px;
+            padding: 24px 28px;
+            backdrop-filter: blur(12px);
+        }
+
+        .quote-text {
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-size: 1.05rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+
+        /* Descrizione Artistica */
+        .artistic-box {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px 28px;
+            margin-top: 16px;
+            backdrop-filter: blur(12px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .artistic-box::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0.5;
+        }
+
+        .artistic-text {
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            line-height: 1.7;
+            font-weight: 300;
+            color: rgba(240, 238, 232, 0.95);
+        }
+
+        .replay-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 24px;
+            padding: 12px 24px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            width: 100%;
+        }
+
+        .replay-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        /* ============================================================
+       LOADING SPINNER (dentro il pulsante)
+    ============================================================ */
+        #sonify-btn .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(24, 18, 10, 0.4);
+            border-top-color: #18120a;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ============================================================
+       FOOTER
+    ============================================================ */
+        footer {
+            margin-top: 60px;
+            font-size: 0.72rem;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: rgba(240, 238, 232, 0.2);
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ============================================================
+       SFERE BLOB DI SFONDO
+  ============================================================ -->
+    <div class="blob-container" aria-hidden="true">
+        <div class="blob blob-1" id="blob1"></div>
+        <div class="blob blob-2" id="blob2"></div>
+        <div class="blob blob-3" id="blob3"></div>
+    </div>
+
+    <!-- ============================================================
+       PAGINA PRINCIPALE
+  ============================================================ -->
+    <main class="page">
+
+        <!-- Header -->
+        <header>
+            <h1 class="logo"><span>Aisthesis</span></h1>
+            <p class="subtitle">Sonificazione semantica · Teoria dei Colori di Goethe</p>
+        </header>
+
+        <!-- Card input -->
+        <section class="card" aria-label="Input emotivo">
+            <label class="input-label" for="emotion-input">Descrivi la tua emozione</label>
+            <textarea id="emotion-input"
+                placeholder="Es. Una malinconia silenziosa, come un cielo grigio prima della pioggia..."
+                aria-label="Campo di testo per l'emozione"></textarea>
+
+            <div class="btn-row">
+                <button id="sonify-btn" class="btn-primary" onclick="handleSonify()">
+                    Sonifica l'Emozione
+                </button>
+                <button class="btn-secondary" onclick="insertRandomEmotion()" aria-label="Inserisci una frase casuale">
+                    Non so come mi sento
+                </button>
+            </div>
+        </section>
+
+        <!-- Area risultato (inizialmente nascosta) -->
+        <section id="result-area" aria-live="polite" aria-label="Risultato della sonificazione">
+            <!-- Chip con il colore ricevuto -->
+            <div class="color-chip">
+                <div class="color-swatch" id="color-swatch"></div>
+                <div class="color-info">
+                    <span class="color-label">Colore Goethiano</span>
+                    <span class="color-hex" id="color-hex-text">—</span>
+                </div>
+            </div>
+
+            <!-- Citazione di Goethe -->
+            <div class="quote-box">
+                <p class="quote-text" id="quote-text">...</p>
+            </div>
+
+            <!-- Descrizione artistica -->
+            <div class="artistic-box">
+                <p class="artistic-text" id="artistic-text">...</p>
+            </div>
+
+            <button id="replay-btn" class="replay-btn" onclick="replaySound()" aria-label="Riascolta Suono">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                Riascolta Suono
+            </button>
+        </section>
+
+        <footer>
+            <p>Progetto universitario · Aisthesis v0.1</p>
+        </footer>
+
+    </main>
+
+    <!-- ============================================================
+       JAVASCRIPT
+  ============================================================ -->
+    <script>
+        "use strict";
+
+        // ------------------------------------------------------------------
+        // FRASI CASUALI — usate dal pulsante "Non so come mi sento"
+        // ------------------------------------------------------------------
+        const RANDOM_EMOTIONS = [
+            "Una malinconia fredda nel blu profondo, come un lago immobile al tramonto.",
+            "Un'energia vibrante e accecante, il giallo del sole che brucia senza pietà.",
+            "Una quiete verde e silenziosa, la pace di un bosco dopo la pioggia.",
+            "Un ardore rosso e pulsante, la passione che non riesce a stare ferma.",
+            "Una nostalgia violacea e dolce, il profumo di qualcosa che non si riesce a ricordare.",
+        ];
+
+        /**
+         * Inserisce una frase emotiva casuale nella textarea.
+         */
+        function insertRandomEmotion() {
+            const textarea = document.getElementById("emotion-input");
+            const idx = Math.floor(Math.random() * RANDOM_EMOTIONS.length);
+            textarea.value = RANDOM_EMOTIONS[idx];
+            // Anima il bordo della textarea per feedback visivo
+            textarea.focus();
+            textarea.style.borderColor = "rgba(201, 169, 110, 0.6)";
+            setTimeout(() => { textarea.style.borderColor = ""; }, 1200);
+        }
+
+        // ------------------------------------------------------------------
+        // WEB AUDIO API — Istanza AudioContext globale
+        // ------------------------------------------------------------------
+        let audioCtx = null;
+        let activeNodes = [];
+        let lastMelody = null;
+
+        /**
+         * Suona una melodia dinamica di note 
+         *
+         * @param {Array} melody - Array di {freq, duration, wave}
+         */
+        function playMelody(melody) {
+            if (!melody || !melody.length) return;
+
+            // Crea il contesto audio al primo utilizzo
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // Ferma le note precedenti.
+            activeNodes.forEach(n => {
+                try {
+                    n.gain.cancelScheduledValues(audioCtx.currentTime);
+                    n.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+                    n.osc.stop(audioCtx.currentTime + 0.2);
+                } catch (e) { }
+            });
+            activeNodes = [];
+
+            let startTime = audioCtx.currentTime + 0.1; // Partenza leggermente ritardata.
+
+            melody.forEach(note => {
+                const osc = audioCtx.createOscillator();
+                osc.type = note.wave || "sine";
+                osc.frequency.setValueAtTime(note.freq, startTime);
+
+                const gainNode = audioCtx.createGain();
+                gainNode.gain.setValueAtTime(0, startTime);
+
+                // L'inviluppo
+                const attackEnd = startTime + (note.duration * 0.2);
+                gainNode.gain.linearRampToValueAtTime(0.25, attackEnd);
+
+                const releaseStart = startTime + (note.duration * 0.8);
+                gainNode.gain.setValueAtTime(0.25, releaseStart);
+
+                const noteEnd = startTime + note.duration;
+                gainNode.gain.linearRampToValueAtTime(0, noteEnd);
+
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                osc.start(startTime);
+                osc.stop(noteEnd + 0.1);
+
+                activeNodes.push({ osc, gain: gainNode.gain });
+
+                startTime += note.duration + 0.05; // Gap minimo
+            });
+        }
+
+        function replaySound() {
+            if (lastMelody) {
+                playMelody(lastMelody);
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // AGGIORNAMENTO COLORI BLOB — cambia le sfere di sfondo
+        // ------------------------------------------------------------------
+
+        /**
+         * Converte un colore HEX in un oggetto {r, g, b}.
+         * Usato per generare varianti delle sfere.
+         */
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            if (!result) return { r: 100, g: 100, b: 200 };
+            return {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16),
+            };
+        }
+
+        /**
+         * Aggiorna il colore delle tre sfere blob a partire dall'HEX ricevuto.
+         * - blob1: colore originale (leggermente desaturato)
+         * - blob2: colore complementare approssimativo
+         * - blob3: variante più scura
+         *
+         * @param {string} hex - Colore HEX ricevuto dal backend (es. "#FF8C00")
+         */
+        function updateBlobColors(hex) {
+            const { r, g, b } = hexToRgb(hex);
+
+            // Blob 1: il colore principale con opacità ridotta
+            document.getElementById("blob1").style.backgroundColor =
+                `rgb(${r}, ${g}, ${b})`;
+
+            // Blob 2: complementare approssimativo (255 - componente)
+            document.getElementById("blob2").style.backgroundColor =
+                `rgb(${255 - r}, ${255 - g}, ${255 - b})`;
+
+            // Blob 3: versione scura del colore principale (fattore 0.5)
+            document.getElementById("blob3").style.backgroundColor =
+                `rgb(${Math.floor(r * 0.5)}, ${Math.floor(g * 0.5)}, ${Math.floor(b * 0.5)})`;
+
+            // Applica una sfumatura all'intero sfondo (body)
+            document.body.style.transition = "background-color 2.5s ease";
+            document.body.style.backgroundColor = `rgba(${r}, ${g}, ${b}, 0.08)`;
+        }
+
+        // ------------------------------------------------------------------
+        // LOGICA PRINCIPALE — click su "Sonifica l'Emozione"
+        // ------------------------------------------------------------------
+
+        /**
+         * Gestisce la chiamata all'endpoint /sonify e aggiorna l'intera UI.
+         */
+        async function handleSonify() {
+            const textarea = document.getElementById("emotion-input");
+            const text = textarea.value.trim();
+
+            // Validazione: il campo non può essere vuoto
+            if (!text) {
+                textarea.focus();
+                textarea.style.borderColor = "rgba(200, 60, 60, 0.7)";
+                setTimeout(() => { textarea.style.borderColor = ""; }, 1500);
+                return;
+            }
+
+            // --- Stato di caricamento ---
+            const btn = document.getElementById("sonify-btn");
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> In ascolto...';
+
+            try {
+                // --- Fetch POST a /sonify ---
+                const response = await fetch("/sonify", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ text }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Errore HTTP: ${response.status}`);
+                }
+
+                const data = await response.json();
+                // data = { hex: "...", freq: ..., wave: "...", quote: "..." }
+
+                // 1. Aggiorna i colori delle sfere blob di sfondo
+                updateBlobColors(data.hex);
+
+                // 2. Aggiorna il chip colore e il testo HEX
+                document.getElementById("color-swatch").style.backgroundColor = data.hex;
+                document.getElementById("color-hex-text").textContent = data.hex.toUpperCase();
+
+                // 3. Mostra la citazione di Goethe e la descrizione artistica
+                document.getElementById("quote-text").textContent = data.quote;
+
+                if (data.artistic_description) {
+                    document.getElementById("artistic-text").textContent = data.artistic_description;
+                }
+
+                // 4. Rendi visibile l'area risultato con animazione
+                document.getElementById("result-area").classList.add("visible");
+
+                // 5. Suona la melodia
+                if (data.melody) {
+                    lastMelody = data.melody;
+                    playMelody(data.melody);
+                } else if (data.freq) {
+                    // Fallback a melodia singola
+                    lastMelody = [{ freq: data.freq, duration: 5.0, wave: data.wave || 'sine' }];
+                    playMelody(lastMelody);
+                }
+
+            } catch (error) {
+                console.error("Errore durante la sonificazione:", error);
+                document.getElementById("quote-text").textContent =
+                    "Errore di connessione. Assicurati che il backend sia avviato.";
+                document.getElementById("result-area").classList.add("visible");
+            } finally {
+                // Ripristina il pulsante in ogni caso
+                btn.disabled = false;
+                btn.innerHTML = "Sonifica l'Emozione";
+            }
+        }
+
+        // Permette di inviare il form anche premendo Ctrl+Enter nella textarea
+        document.getElementById("emotion-input").addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                handleSonify();
+            }
+        });
+    </script>
 </body>
+
 </html>
