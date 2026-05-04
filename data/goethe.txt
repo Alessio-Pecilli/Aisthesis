@@ -1,0 +1,42 @@
+# Teoria dei Colori - Johann Wolfgang von Goethe
+# Inserisci qui il testo completo della "Farbenlehre" (Teoria dei Colori) di Goethe.
+# Questo file verrà indicizzato dalla pipeline RAG per recuperare citazioni rilevanti.
+
+== GIALLO ==
+Il giallo è il colore più vicino alla luce. Nella sua massima purezza, porta sempre con sé
+la natura della luminosità e ha un carattere sereno, gioioso, dolcemente eccitante.
+È il colore del sole e dell'oro, simbolo di nobiltà e saggezza.
+
+== ROSSO-GIALLO (Arancio) ==
+Come il giallo viene approfondito verso il basso, esso assume ancora più energia.
+L'arancio dà allo spettatore un senso di calore e beatitudine, come la luce del sole al tramonto.
+Stimola l'attività e la vitalità, ma può diventare opprimente nella sua intensità.
+
+== ROSSO ==
+Il rosso è il re dei colori. Esso tende verso l'alto e verso il basso, all'arancio e al violetto.
+Come colore puro e alto, conferisce una dignità maestosa e, nella sua forma più intensa,
+trasmette un'impressione di gravità e magnificenza.
+
+== GIALLO-ROSSO (Vermiglio) ==
+Il vermiglio esercita un fascino indescrivibile come colore attivo.
+Porta con sé forza, energia, passione e desiderio. È il fuoco dell'amore e della guerra.
+
+== BLU ==
+Il blu porta con sé un principio di oscurità. La sua azione è singolare e quasi contraddittoria.
+Come colore è energico, ma si trova dal lato del negativo e nella sua massima purezza
+è una sorta di negazione stimolante. Dà una sensazione di freddo e ci ricorda l'ombra.
+
+== AZZURRO ==
+Come il cielo e l'acqua lontana, l'azzurro ci attrae con la sua profondità.
+Non ci segue ma ci invita. Guardare in alto in un cielo blu ci dà una sensazione di lontananza
+infinita, e con essa di solitudine, malinconia e desiderio.
+
+== VIOLETTO ==
+Il violetto è un rosso spostato verso il lato del meno. Porta con sé qualcosa di inquietante
+e di malinconico. I colori rossi intorno al tramonto danno un'impressione dolorosa quando
+inclinano verso il violetto.
+
+== VERDE ==
+Quando giallo e blu si incontrano in perfetto equilibrio nasce il verde, il colore della quiete.
+L'occhio vi trova una vera soddisfazione. Non vuole più andare oltre e non può andare oltre.
+È il colore della Natura nel suo momento di massimo riposo.

@@ -1,0 +1,13 @@
+# --- Backend Web Server ---
+fastapi
+uvicorn[standard]
+pydantic
+
+# --- RAG & LLM Pipeline ---
+langchain
+langchain-chroma
+langchain-community
+openai
+
+# --- Utilità ---
+python-dotenv
