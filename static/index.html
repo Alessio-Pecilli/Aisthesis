@@ -255,6 +255,35 @@
             flex-wrap: wrap;
         }
 
+        .k-control {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-top: 18px;
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.22);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        .k-control-text {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .k-control-value {
+            min-width: 2ch;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        #color-count {
+            width: min(220px, 44vw);
+            accent-color: var(--accent);
+        }
+
         /* Pulsante primario — Sonifica */
         .btn-primary {
             flex: 1;
@@ -354,6 +383,10 @@
 
         #result-area.visible .delay-4 {
             transition-delay: 0.5s;
+        }
+
+        #result-area.visible .delay-5 {
+            transition-delay: 0.6s;
         }
 
         /* Elegante Dashboard Dati */
@@ -461,6 +494,63 @@
             flex-direction: column;
             gap: 2px;
             text-align: right;
+        }
+
+        .color-ranking {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .ranked-color {
+            display: grid;
+            grid-template-columns: auto 34px 1fr auto;
+            align-items: center;
+            gap: 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            backdrop-filter: blur(16px);
+        }
+
+        .rank-number {
+            color: var(--accent);
+            font-size: 0.8rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .rank-swatch {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .rank-copy {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 0;
+        }
+
+        .rank-title {
+            color: var(--text-primary);
+            font-size: 0.96rem;
+            font-weight: 500;
+        }
+
+        .rank-motivation {
+            color: rgba(240, 238, 232, 0.68);
+            font-size: 0.86rem;
+            line-height: 1.5;
+        }
+
+        .rank-hex {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-variant-numeric: tabular-nums;
         }
 
         /* Oscilloscope integrato fluidamente */
@@ -580,6 +670,40 @@
             color: rgba(240, 238, 232, 0.2);
             text-align: center;
         }
+
+        @media (max-width: 620px) {
+            .card {
+                padding: 28px 22px;
+            }
+
+            .k-control,
+            .elegant-data-row {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            #color-count {
+                width: 100%;
+            }
+
+            .metric-group {
+                width: 100%;
+                justify-content: space-between;
+                gap: 16px;
+            }
+
+            .metric {
+                text-align: left;
+            }
+
+            .ranked-color {
+                grid-template-columns: auto 34px 1fr;
+            }
+
+            .rank-hex {
+                grid-column: 3;
+            }
+        }
     </style>
 </head>
 
@@ -610,6 +734,15 @@
             <textarea id="emotion-input" placeholder="Un brivido dorato nell'alba, come il silenzio della collina..."
                 aria-label="Campo di testo per l'emozione"></textarea>
 
+            <div class="k-control">
+                <div class="k-control-text">
+                    <span class="input-label" style="margin-bottom: 0;">Colori da cercare</span>
+                    <span class="elegant-val k-control-value" id="color-count-value">1</span>
+                </div>
+                <input id="color-count" type="range" min="1" max="8" value="1" step="1"
+                    aria-label="Numero di colori da cercare" />
+            </div>
+
             <div class="btn-row">
                 <button id="sonify-btn" class="btn-primary" onclick="handleSonify()">
                     Sonifica l'Emozione
@@ -629,7 +762,7 @@
                 <div class="color-chip-group">
                     <div class="color-swatch" id="color-swatch"></div>
                     <div class="color-info">
-                        <span class="elegant-label">Colore Goethiano</span>
+                        <span class="elegant-label">Mix cromatico</span>
                         <span class="elegant-val" id="data-hex">—</span>
                     </div>
                 </div>
@@ -650,17 +783,19 @@
                 <canvas id="oscilloscope"></canvas>
             </div>
 
+            <div class="color-ranking stagger-item delay-2" id="colors-list"></div>
+
             <!-- Citazione di Goethe -->
-            <div class="quote-box stagger-item delay-2">
+            <div class="quote-box stagger-item delay-3">
                 <p class="quote-text" id="quote-text">...</p>
             </div>
 
             <!-- Descrizione artistica -->
-            <div class="artistic-box stagger-item delay-3">
+            <div class="artistic-box stagger-item delay-4">
                 <p class="artistic-text" id="artistic-text">...</p>
             </div>
 
-            <button id="replay-btn" class="replay-btn stagger-item delay-4" onclick="replaySound()"
+            <button id="replay-btn" class="replay-btn stagger-item delay-5" onclick="replaySound()"
                 aria-label="Riascolta Sequenza">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                     stroke-linecap="round" stroke-linejoin="round">
@@ -684,13 +819,31 @@
         // ------------------------------------------------------------------
         // FRASI CASUALI
         // ------------------------------------------------------------------
-        const RANDOM_EMOTIONS = [
-            "Una malinconia fredda nel blu profondo, come un lago immobile al tramonto.",
-            "Un'energia vibrante e accecante, il giallo del sole che brucia senza pietà.",
-            "Una quiete verde e silenziosa, la pace di un bosco dopo la pioggia.",
-            "Un ardore rosso e pulsante, la passione che non riesce a stare ferma.",
-            "Una nostalgia violacea e dolce, il profumo di qualcosa che non si riesce a ricordare.",
-        ];
+        const RANDOM_EMOTIONS = ["Un’ansia grigia e granulosa, come sabbia che scorre tra dita troppo stanche.",
+"Un’euforia color corallo, il salto improvviso di un pesce in un mare calmo.",
+"Una solitudine d’argento, il riflesso della luna su una rotaia abbandonata.",
+"Un coraggio blu cobalto, la forza delle onde che scavano la roccia senza fare rumore.",
+"Una gelosia verde acido, il ronzio di un insetto che non smette di pungere.",
+"Una stanchezza color cenere, la polvere che si deposita sui sogni dimenticati.",
+"Un’attesa color ambra, la resina che imprigiona un istante per l’eternità.",
+"Una rabbia arancione e distruttiva, il ruggito di un incendio in una prateria secca.",
+"Un sollievo bianco latte, la morbidezza di una nuvola che copre un dolore troppo forte.",
+"Una timidezza color lavanda, il profumo di un segreto sussurrato a metà.",
+"Un rimpianto color fumo, l’ombra di un treno che è già partito dal binario.",
+"Una curiosità giallo limone, il lampo di un’idea che accende il buio.",
+"Un orgoglio porpora e pesante, il mantello di un re che non ha più un regno.",
+"Una speranza verde germoglio, la testardaggine di un fiore che spacca l’asfalto.",
+"Un vuoto nero e profondo, l’assenza di gravità in una stanza senza pareti.",
+"Una tenerezza rosa cipria, il battito d’ali di una farfalla sulla pelle.",
+"Un sospetto color petrolio, una macchia scura che si allarga su un pensiero limpido.",
+"Una pace color turchese, il respiro lento dei ghiacciai millenari.",
+"Un’amarezza color ruggine, il sapore di un metallo lasciato alle intemperie.",
+"Un desiderio color oro, la scia luminosa di una stella che cade lontano.",
+"Una noia color fango, il tempo che ristagna in una pozzanghera dopo il temporale.",
+"Un incanto color perla, la luce soffusa di un mattino d'inverno.",
+"Una ferocia color rubino, il taglio netto di un vetro che brilla sotto il sole.",
+"Un’armonia color smeraldo, il canto coordinato di una foresta all'alba.",
+"Una confusione color nebbia, un labirinto di specchi dove ogni strada sembra la stessa."];
 
         function insertRandomEmotion() {
             const textarea = document.getElementById("emotion-input");
@@ -854,12 +1007,50 @@
             document.getElementById("swatch-glow").style.backgroundColor = hex;
         }
 
+        function renderColorList(colors) {
+            const list = document.getElementById("colors-list");
+            list.replaceChildren();
+
+            (colors || []).forEach((color, index) => {
+                const item = document.createElement("div");
+                item.className = "ranked-color";
+
+                const rank = document.createElement("span");
+                rank.className = "rank-number";
+                rank.textContent = String(color.rank || index + 1).padStart(2, "0");
+
+                const swatch = document.createElement("span");
+                swatch.className = "rank-swatch";
+                swatch.style.backgroundColor = color.hex || "#777777";
+
+                const copy = document.createElement("div");
+                copy.className = "rank-copy";
+
+                const title = document.createElement("span");
+                title.className = "rank-title";
+                title.textContent = color.name || "Colore";
+
+                const motivation = document.createElement("span");
+                motivation.className = "rank-motivation";
+                motivation.textContent = color.motivation || "Motivazione non disponibile.";
+
+                const hex = document.createElement("span");
+                hex.className = "rank-hex";
+                hex.textContent = (color.hex || "").toUpperCase();
+
+                copy.append(title, motivation);
+                item.append(rank, swatch, copy, hex);
+                list.appendChild(item);
+            });
+        }
+
         // ------------------------------------------------------------------
         // LOGICA PRINCIPALE
         // ------------------------------------------------------------------
         async function handleSonify() {
             const textarea = document.getElementById("emotion-input");
             const text = textarea.value.trim();
+            const k = Number(document.getElementById("color-count").value) || 1;
 
             if (!text) {
                 textarea.focus();
@@ -879,19 +1070,21 @@
                 const response = await fetch("/sonify", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text }),
+                    body: JSON.stringify({ text, k }),
                 });
 
                 if (!response.ok) throw new Error(`Errore HTTP: ${response.status}`);
 
                 const data = await response.json();
+                const mixHex = data.mix_hex || data.hex;
 
-                updateBlobColors(data.hex);
+                updateBlobColors(mixHex);
 
                 // Aggiorna eleganti dati scientifici
-                document.getElementById("color-swatch").style.backgroundColor = data.hex;
-                document.getElementById("data-hex").textContent = data.hex.toUpperCase();
+                document.getElementById("color-swatch").style.backgroundColor = mixHex;
+                document.getElementById("data-hex").textContent = mixHex.toUpperCase();
                 document.getElementById("data-freq").textContent = data.freq.toFixed(1) + " Hz";
+                renderColorList(data.colors || []);
 
                 // Valorizzazione artistica della forma d'onda ("Forma")
                 const waveTranslations = {
@@ -926,12 +1119,17 @@
                 console.error("Errore durante la sonificazione:", error);
                 document.getElementById("quote-text").textContent =
                     "Errore di connessione. Assicurati che il backend sia avviato.";
+                renderColorList([]);
                 document.getElementById("result-area").classList.add("visible");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "Sonifica l'Emozione";
             }
         }
+
+        document.getElementById("color-count").addEventListener("input", (e) => {
+            document.getElementById("color-count-value").textContent = e.target.value;
+        });
 
         document.getElementById("emotion-input").addEventListener("keydown", (e) => {
             if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
