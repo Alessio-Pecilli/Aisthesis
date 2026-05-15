@@ -20,7 +20,7 @@
 
     <style>
         /* ============================================================
-       RESET & VARIABILI
+       RESET & VARIABILI — GOETHE CLASSIC THEME
     ============================================================ */
         *,
         *::before,
@@ -31,16 +31,16 @@
         }
 
         :root {
-            --bg: #0a0a0f;
-            --surface: rgba(255, 255, 255, 0.04);
-            --border: rgba(255, 255, 255, 0.08);
-            --text-primary: #f0eee8;
-            --text-muted: rgba(240, 238, 232, 0.45);
+            --bg: #fdfbf7;
+            --surface: rgba(44, 42, 38, 0.03);
+            --border: rgba(44, 42, 38, 0.08);
+            --text-primary: #2c2a26;
+            --text-muted: #7a766f;
             --accent: #c9a96e;
-            --blob-1: #7b3fc4;
-            --blob-2: #1a6e8a;
-            --blob-3: #c4503f;
-            --radius: 16px;
+            --blob-1: #e2d1a8;
+            --blob-2: #d6e0e2;
+            --blob-3: #e8d6d6;
+            --radius: 12px;
             --transition-color: 2.5s ease;
         }
 
@@ -51,10 +51,13 @@
             color: var(--text-primary);
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 2px 2px, rgba(44, 42, 38, 0.03) 1px, transparent 0);
+            background-size: 40px 40px;
         }
 
         /* ============================================================
-       SFERE BLOB — effetto sfondo ambientale
+       SFERE BLOB — effetto acquerello
     ============================================================ */
         .blob-container {
             position: fixed;
@@ -64,87 +67,56 @@
             overflow: hidden;
         }
 
-        /* Ogni sfera è un div colorato, molto sfocato, che fluttua lentamente */
         .blob {
             position: absolute;
-            width: 520px;
-            height: 520px;
+            width: 600px;
+            height: 600px;
             border-radius: 50%;
-            filter: blur(120px);
-            opacity: 0.55;
-            /* La proprietà background-color viene animata via JS quando arriva il colore */
+            filter: blur(100px);
+            opacity: 0.35;
             transition: background-color var(--transition-color);
             will-change: transform;
         }
 
-        /* Posizioni di partenza delle sfere */
         .blob-1 {
             background-color: var(--blob-1);
-            top: -15%;
-            left: -10%;
-            animation: float1 18s ease-in-out infinite;
+            top: -10%;
+            left: -5%;
+            animation: float1 25s ease-in-out infinite;
         }
 
         .blob-2 {
             background-color: var(--blob-2);
-            bottom: -20%;
-            right: -10%;
-            animation: float2 22s ease-in-out infinite;
+            bottom: -15%;
+            right: -5%;
+            animation: float2 30s ease-in-out infinite;
         }
 
         .blob-3 {
             background-color: var(--blob-3);
-            top: 40%;
+            top: 45%;
             left: 50%;
             transform: translateX(-50%);
-            width: 380px;
-            height: 380px;
-            animation: float3 14s ease-in-out infinite;
+            width: 450px;
+            height: 450px;
+            animation: float3 20s ease-in-out infinite;
         }
 
-        /* Keyframes per la fluttuazione delle sfere */
         @keyframes float1 {
-
-            0%,
-            100% {
-                transform: translate(0, 0) scale(1);
-            }
-
-            33% {
-                transform: translate(60px, 40px) scale(1.07);
-            }
-
-            66% {
-                transform: translate(-30px, 70px) scale(0.96);
-            }
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(80px, 50px) scale(1.1); }
+            66% { transform: translate(-40px, 90px) scale(0.9); }
         }
 
         @keyframes float2 {
-
-            0%,
-            100% {
-                transform: translate(0, 0) scale(1);
-            }
-
-            40% {
-                transform: translate(-80px, -50px) scale(1.1);
-            }
-
-            70% {
-                transform: translate(40px, -30px) scale(0.93);
-            }
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            40% { transform: translate(-100px, -60px) scale(1.15); }
+            70% { transform: translate(50px, -40px) scale(0.85); }
         }
 
         @keyframes float3 {
-
-            0%,
-            100% {
-                transform: translateX(-50%) scale(1);
-            }
-
-            50% {
-                transform: translateX(-50%) scale(1.15) translateY(-40px);
-            }
+            0%, 100% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.2) translateY(-50px); }
         }
 
         /* ============================================================
@@ -157,7 +129,7 @@
             flex-direction: column;
             align-items: center;
             min-height: 100vh;
-            padding: 60px 20px 80px;
+            padding: 80px 24px 100px;
         }
 
         /* ============================================================
@@ -165,30 +137,40 @@
     ============================================================ */
         header {
             text-align: center;
-            margin-bottom: 56px;
+            margin-bottom: 70px;
         }
 
         .logo {
             font-family: 'Playfair Display', serif;
-            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-size: clamp(3.5rem, 10vw, 6rem);
             font-weight: 400;
-            letter-spacing: 0.06em;
+            font-style: italic;
+            letter-spacing: -0.02em;
             color: var(--text-primary);
             line-height: 1;
         }
 
         .logo span {
-            /* Sottolineatura dorata animata */
             display: inline-block;
-            border-bottom: 2px solid var(--accent);
-            padding-bottom: 6px;
+            position: relative;
+        }
+
+        .logo span::after {
+            content: '';
+            position: absolute;
+            bottom: 8px;
+            left: 0;
+            width: 100%;
+            height: 1px;
+            background: var(--text-primary);
+            opacity: 0.2;
         }
 
         .subtitle {
-            margin-top: 14px;
-            font-size: 0.85rem;
-            font-weight: 300;
-            letter-spacing: 0.25em;
+            margin-top: 18px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.4em;
             text-transform: uppercase;
             color: var(--text-muted);
         }
@@ -198,945 +180,581 @@
     ============================================================ */
         .card {
             width: 100%;
-            max-width: 680px;
-            background: var(--surface);
+            max-width: 720px;
+            background: rgba(255, 255, 255, 0.4);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 40px;
-            backdrop-filter: blur(24px);
-            -webkit-backdrop-filter: blur(24px);
+            padding: 50px;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.03);
             position: relative;
             z-index: 2;
         }
 
-        /* Label della textarea */
         .input-label {
             display: block;
-            font-size: 0.75rem;
-            font-weight: 500;
-            letter-spacing: 0.18em;
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.25em;
             text-transform: uppercase;
             color: var(--text-muted);
-            margin-bottom: 12px;
+            margin-bottom: 16px;
         }
 
-        /* Textarea per l'input emotivo */
         #emotion-input {
             width: 100%;
-            min-height: 130px;
-            resize: vertical;
-            background: rgba(0, 0, 0, 0.3);
+            min-height: 160px;
+            resize: none;
+            background: rgba(255, 255, 255, 0.6);
             border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 16px 18px;
+            border-radius: 8px;
+            padding: 24px;
             color: var(--text-primary);
-            font-family: 'Inter', sans-serif;
-            font-size: 1rem;
-            font-weight: 300;
-            line-height: 1.7;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.25rem;
+            font-style: italic;
+            line-height: 1.6;
             outline: none;
-            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+            transition: all 0.4s ease;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.01);
         }
 
         #emotion-input::placeholder {
-            color: var(--text-muted);
+            color: #b0ada6;
+            font-style: italic;
         }
 
         #emotion-input:focus {
-            border-color: rgba(201, 169, 110, 0.5);
-            box-shadow: 0 0 0 3px rgba(201, 169, 110, 0.08);
+            background: white;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(201, 169, 110, 0.1);
         }
 
-        /* Riga dei pulsanti */
-        .btn-row {
-            display: flex;
-            gap: 14px;
-            margin-top: 22px;
-            flex-wrap: wrap;
-        }
-
-        .k-control {
+        /* Live Indicator */
+        .live-status {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            margin-top: 18px;
-            padding: 14px 16px;
-            background: rgba(0, 0, 0, 0.22);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-        }
-
-        .k-control-text {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .k-control-value {
-            min-width: 2ch;
-            color: var(--text-primary);
-            font-variant-numeric: tabular-nums;
-        }
-
-        #color-count {
-            width: min(220px, 44vw);
-            accent-color: var(--accent);
-        }
-
-        /* Pulsante primario — Sonifica */
-        .btn-primary {
-            flex: 1;
-            min-width: 200px;
-            padding: 15px 28px;
-            background: linear-gradient(135deg, #c9a96e 0%, #a07840 100%);
-            color: #18120a;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
+            gap: 8px;
+            margin-top: 16px;
+            font-size: 0.65rem;
             font-weight: 600;
-            letter-spacing: 0.05em;
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--text-muted);
         }
 
-        .btn-primary:hover {
-            opacity: 0.9;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 32px rgba(201, 169, 110, 0.3);
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background: #4caf50;
+            border-radius: 50%;
+            opacity: 0.4;
         }
 
-        .btn-primary:active {
-            transform: translateY(0);
+        .is-processing .pulse-dot {
+            animation: pulse-green 1s infinite ease-in-out;
+            opacity: 1;
         }
 
-        .btn-primary:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
+        @keyframes pulse-green {
+            0%, 100% { transform: scale(1); opacity: 0.5; }
+            50% { transform: scale(1.5); opacity: 1; }
         }
 
-        /* Pulsante secondario — Non so come mi sento */
+        .btn-row {
+            display: flex;
+            gap: 16px;
+            margin-top: 30px;
+        }
+
         .btn-secondary {
-            padding: 15px 20px;
+            padding: 12px 24px;
             background: transparent;
             color: var(--text-muted);
             font-family: 'Inter', sans-serif;
-            font-size: 0.82rem;
-            font-weight: 400;
-            letter-spacing: 0.03em;
+            font-size: 0.75rem;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
             border: 1px solid var(--border);
-            border-radius: 10px;
+            border-radius: 6px;
             cursor: pointer;
-            white-space: nowrap;
-            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+            transition: all 0.2s ease;
         }
 
         .btn-secondary:hover {
             color: var(--text-primary);
-            border-color: rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.04);
+            border-color: var(--text-primary);
+            background: rgba(0, 0, 0, 0.02);
         }
 
         /* ============================================================
-       AREA RISULTATO (Staggered Animations)
+       AREA RISULTATO (Elegance & Classical)
     ============================================================ */
         #result-area {
-            margin-top: 40px;
+            margin-top: 50px;
             width: 100%;
-            max-width: 680px;
-            pointer-events: none;
+            max-width: 720px;
             display: flex;
             flex-direction: column;
-            gap: 16px;
-        }
-
-        /* Shared animation logic for children */
-        .stagger-item {
+            gap: 24px;
             opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.6s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transform: translateY(30px);
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         #result-area.visible {
-            pointer-events: auto;
-        }
-
-        #result-area.visible .stagger-item {
             opacity: 1;
             transform: translateY(0);
         }
 
-        /* Stagger Delays */
-        #result-area.visible .delay-1 {
-            transition-delay: 0.1s;
-        }
-
-        #result-area.visible .delay-2 {
-            transition-delay: 0.25s;
-        }
-
-        #result-area.visible .delay-3 {
-            transition-delay: 0.4s;
-        }
-
-        #result-area.visible .delay-4 {
-            transition-delay: 0.5s;
-        }
-
-        #result-area.visible .delay-5 {
-            transition-delay: 0.6s;
-        }
-
-        /* Elegante Dashboard Dati */
+        /* Dashboard Dati */
         .elegant-data-row {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            background: var(--surface);
+            background: white;
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 16px 24px;
-            backdrop-filter: blur(16px);
-            gap: 16px;
+            padding: 24px 32px;
+            gap: 24px;
             position: relative;
             overflow: hidden;
-        }
-
-        .color-chip-group {
-            display: flex;
-            align-items: center;
-            gap: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
         }
 
         .color-swatch {
-            width: 42px;
-            height: 42px;
+            width: 56px;
+            height: 56px;
             border-radius: 50%;
-            flex-shrink: 0;
-            border: 2px solid rgba(255, 255, 255, 0.15);
+            border: 1px solid rgba(0, 0, 0, 0.05);
             transition: background-color var(--transition-color);
             position: relative;
             z-index: 2;
         }
 
-        /* Glowing aura around color swatch */
-        .color-swatch-glow {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            filter: blur(15px);
-            opacity: 0;
-            transition: opacity 0.5s ease;
-            z-index: 1;
-            pointer-events: none;
-        }
-
-        .is-playing .color-swatch-glow {
-            opacity: 0.8;
-            animation: pulse-glow 2s infinite ease-in-out;
-        }
-
-        @keyframes pulse-glow {
-            0% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 0.4;
-            }
-
-            50% {
-                transform: translate(-50%, -50%) scale(1.5);
-                opacity: 0.9;
-            }
-
-            100% {
-                transform: translate(-50%, -50%) scale(1);
-                opacity: 0.4;
-            }
-        }
-
         .color-info {
             display: flex;
             flex-direction: column;
-            gap: 2px;
-            z-index: 2;
+            gap: 4px;
         }
 
         .elegant-label {
-            font-size: 0.72rem;
-            font-weight: 500;
+            font-size: 0.65rem;
+            font-weight: 700;
             letter-spacing: 0.2em;
             text-transform: uppercase;
             color: var(--text-muted);
         }
 
         .elegant-val {
-            font-size: 1.15rem;
-            font-weight: 500;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.4rem;
+            font-weight: 400;
             color: var(--text-primary);
-            font-variant-numeric: tabular-nums;
-            transition: color 0.5s ease;
         }
 
         .metric-group {
             display: flex;
-            gap: 32px;
+            gap: 40px;
             align-items: center;
-            z-index: 2;
         }
 
         .metric {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 4px;
             text-align: right;
         }
 
-        .color-ranking {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .ranked-color {
-            display: grid;
-            grid-template-columns: auto 34px 1fr auto;
-            align-items: center;
-            gap: 14px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px 16px;
-            backdrop-filter: blur(16px);
-        }
-
-        .rank-number {
-            color: var(--accent);
-            font-size: 0.8rem;
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .rank-swatch {
-            width: 34px;
-            height: 34px;
-            border-radius: 50%;
-            border: 2px solid rgba(255, 255, 255, 0.15);
-        }
-
-        .rank-copy {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            min-width: 0;
-        }
-
-        .rank-title {
-            color: var(--text-primary);
-            font-size: 0.96rem;
-            font-weight: 500;
-        }
-
-        .rank-motivation {
-            color: rgba(240, 238, 232, 0.68);
-            font-size: 0.86rem;
-            line-height: 1.5;
-        }
-
-        .rank-hex {
-            color: var(--text-muted);
-            font-size: 0.8rem;
-            font-variant-numeric: tabular-nums;
-        }
-
-        /* Oscilloscope integrato fluidamente */
         #oscilloscope {
             position: absolute;
             bottom: 0;
             left: 0;
-            right: 0;
             width: 100%;
-            height: 40px;
-            opacity: 0.6;
+            height: 50px;
+            opacity: 0.1;
             z-index: 1;
             pointer-events: none;
         }
 
-        /* Citazione di Goethe */
+        /* Citazione di Goethe — FOCUS CLASSIC */
         .quote-box {
-            background: var(--surface);
+            background: white;
             border: 1px solid var(--border);
-            border-left: 3px solid var(--accent);
+            padding: 40px;
             border-radius: var(--radius);
-            padding: 24px 28px;
-            backdrop-filter: blur(16px);
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+            position: relative;
+        }
+
+        .quote-box::before {
+            content: '“';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Playfair Display', serif;
+            font-size: 4rem;
+            color: var(--accent);
+            opacity: 0.3;
         }
 
         .quote-text {
             font-family: 'Playfair Display', serif;
             font-style: italic;
-            font-size: 1.1rem;
-            line-height: 1.8;
+            font-size: 1.6rem;
+            line-height: 1.5;
             color: var(--text-primary);
+            margin-bottom: 20px;
         }
 
-        /* Descrizione Artistica */
-        .artistic-box {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 24px 28px;
-            backdrop-filter: blur(16px);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .artistic-box::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent), transparent);
-            opacity: 0.5;
-        }
-
-        .artistic-text {
+        .artistic-description {
             font-family: 'Inter', sans-serif;
-            font-size: 0.95rem;
-            line-height: 1.7;
-            font-weight: 300;
-            color: rgba(240, 238, 232, 0.95);
+            font-size: 0.9rem;
+            line-height: 1.8;
+            font-weight: 400;
+            color: var(--text-muted);
+            max-width: 80%;
+            margin: 0 auto;
         }
 
+        /* Controls */
         .replay-btn {
-            display: inline-flex;
+            display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            padding: 14px 24px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            color: var(--text-primary);
+            gap: 10px;
+            padding: 16px;
+            background: var(--text-primary);
+            color: white;
             font-family: 'Inter', sans-serif;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            border: none;
+            border-radius: var(--radius);
             cursor: pointer;
-            transition: all 0.2s ease;
-            width: 100%;
-            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
         }
 
         .replay-btn:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.3);
+            background: #000;
             transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
         }
 
-        /* ============================================================
-       LOADING SPINNER
-    ============================================================ */
-        #sonify-btn .spinner {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(24, 18, 10, 0.4);
-            border-top-color: #18120a;
-            border-radius: 50%;
-            animation: spin 0.7s linear infinite;
-            vertical-align: middle;
-            margin-right: 8px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        /* ============================================================
-       FOOTER
-    ============================================================ */
         footer {
-            margin-top: 60px;
-            font-size: 0.72rem;
-            letter-spacing: 0.15em;
+            margin-top: 80px;
+            font-size: 0.65rem;
+            letter-spacing: 0.3em;
             text-transform: uppercase;
-            color: rgba(240, 238, 232, 0.2);
-            text-align: center;
+            color: var(--text-muted);
+            opacity: 0.6;
         }
 
         @media (max-width: 620px) {
-            .card {
-                padding: 28px 22px;
-            }
-
-            .k-control,
-            .elegant-data-row {
-                align-items: flex-start;
-                flex-direction: column;
-            }
-
-            #color-count {
-                width: 100%;
-            }
-
-            .metric-group {
-                width: 100%;
-                justify-content: space-between;
-                gap: 16px;
-            }
-
-            .metric {
-                text-align: left;
-            }
-
-            .ranked-color {
-                grid-template-columns: auto 34px 1fr;
-            }
-
-            .rank-hex {
-                grid-column: 3;
-            }
+            .card { padding: 30px 24px; }
+            .elegant-data-row { flex-direction: column; text-align: center; }
+            .metric-group { width: 100%; justify-content: center; }
+            .metric { text-align: center; }
+            .logo { font-size: 3.5rem; }
         }
     </style>
 </head>
 
 <body>
 
-    <!-- ============================================================
-       SFERE BLOB DI SFONDO (RIPRISTINATE!)
-  ============================================================ -->
     <div class="blob-container" aria-hidden="true">
         <div class="blob blob-1" id="blob1"></div>
         <div class="blob blob-2" id="blob2"></div>
         <div class="blob blob-3" id="blob3"></div>
     </div>
 
-    <!-- ============================================================
-       PAGINA PRINCIPALE
-  ============================================================ -->
     <main class="page">
-        <!-- Header -->
         <header>
             <h1 class="logo"><span>Aisthesis</span></h1>
-            <p class="subtitle">Sonificazione semantica · Teoria dei Colori di Goethe</p>
+            <p class="subtitle">Goethe Classic · Live Semantic Sonification</p>
         </header>
 
-        <!-- Card input -->
-        <section class="card" aria-label="Input collegato alla semantica testuale">
-            <label class="input-label" for="emotion-input">Descrivi la tua emozione</label>
-            <textarea id="emotion-input" placeholder="Un brivido dorato nell'alba, come il silenzio della collina..."
-                aria-label="Campo di testo per l'emozione"></textarea>
-
-            <div class="k-control">
-                <div class="k-control-text">
-                    <span class="input-label" style="margin-bottom: 0;">Colori da cercare</span>
-                    <span class="elegant-val k-control-value" id="color-count-value">1</span>
-                </div>
-                <input id="color-count" type="range" min="1" max="7" value="1" step="1"
-                    aria-label="Numero di colori da cercare" />
+        <section class="card">
+            <label class="input-label" for="emotion-input">L'animo esprime...</label>
+            <textarea id="emotion-input" placeholder="Scrivi la tua emozione..." autofocus></textarea>
+            
+            <div class="live-status" id="live-indicator">
+                <div class="pulse-dot"></div>
+                <span id="status-text">Pronto all'ascolto</span>
             </div>
 
             <div class="btn-row">
-                <button id="sonify-btn" class="btn-primary" onclick="handleSonify()">
-                    Sonifica l'Emozione
-                </button>
-                <button class="btn-secondary" onclick="insertRandomEmotion()" aria-label="Inserisci seme casuale">
-                    Seme Casuale
-                </button>
+                <button class="btn-secondary" onclick="insertRandomEmotion()">Seme Casuale</button>
             </div>
         </section>
 
-        <!-- Area risultato (Staggered Animation) -->
-        <section id="result-area" aria-live="polite" aria-label="Risultato della sonificazione">
-
+        <section id="result-area">
             <!-- Elegant Data Dashboard -->
-            <div class="elegant-data-row stagger-item delay-1" id="data-container">
-                <div class="color-swatch-glow" id="swatch-glow"></div>
-                <div class="color-chip-group">
+            <div class="elegant-data-row" id="data-container">
+                <div class="color-chip-group" style="display: flex; align-items: center; gap: 20px;">
                     <div class="color-swatch" id="color-swatch"></div>
                     <div class="color-info">
-                        <span class="elegant-label">Mix cromatico</span>
-                        <span class="elegant-val" id="data-hex">—</span>
+                        <span class="elegant-label">Tonalità</span>
+                        <span class="elegant-val" id="data-color-name">—</span>
                     </div>
                 </div>
 
                 <div class="metric-group">
                     <div class="metric">
-                        <span class="elegant-label">Armonia</span>
+                        <span class="elegant-label">Tonalità (Hz)</span>
                         <span class="elegant-val" id="data-freq">—</span>
+                        <span style="font-size: 0.55rem; color: var(--text-muted); margin-top: 2px;">Altezza della nota</span>
                     </div>
                     <div class="metric">
-                        <span class="elegant-label">Tessitura Sonora</span>
-                        <span class="elegant-val" id="data-wave"
-                            style="text-size: 0.95rem; font-style: italic;">—</span>
+                        <span class="elegant-label">Sicurezza (%)</span>
+                        <span class="elegant-val" id="data-conf">—</span>
+                        <span style="font-size: 0.55rem; color: var(--text-muted); margin-top: 2px;">Analisi AI</span>
                     </div>
                 </div>
 
-                <!-- Fluid Background Oscilloscope (Ethereal style) -->
                 <canvas id="oscilloscope"></canvas>
             </div>
 
-            <div class="color-ranking stagger-item delay-2" id="colors-list"></div>
-
             <!-- Citazione di Goethe -->
-            <div class="quote-box stagger-item delay-3">
-                <p class="quote-text" id="quote-text">...</p>
+            <div class="quote-box">
+                <p class="quote-text" id="quote-text">Scegli le parole che descrivono il tuo stato interiore.</p>
+                <p class="artistic-description" id="artistic-text">L'analisi semantica trasformerà il testo in colore e suono secondo la Teoria dei Colori di Goethe.</p>
             </div>
 
-            <!-- Descrizione artistica -->
-            <div class="artistic-box stagger-item delay-4">
-                <p class="artistic-text" id="artistic-text">...</p>
-            </div>
-
-            <button id="replay-btn" class="replay-btn stagger-item delay-5" onclick="replaySound()"
-                aria-label="Riascolta Sequenza">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                    stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            <button id="replay-btn" class="replay-btn" onclick="replaySound()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
                 </svg>
                 Riascolta l'Emozione
             </button>
         </section>
 
         <footer>
-            <p>Progetto universitario · Aisthesis v0.1</p>
+            <p>Aisthesis v3.2 · Classic Edition</p>
         </footer>
     </main>
 
-    <!-- ============================================================
-       JAVASCRIPT
-  ============================================================ -->
     <script>
         "use strict";
 
         // ------------------------------------------------------------------
         // FRASI CASUALI
         // ------------------------------------------------------------------
-        const RANDOM_EMOTIONS = ["Un’ansia grigia e granulosa, come sabbia che scorre tra dita troppo stanche.",
-"Un’euforia color corallo, il salto improvviso di un pesce in un mare calmo.",
-"Una solitudine d’argento, il riflesso della luna su una rotaia abbandonata.",
-"Un coraggio blu cobalto, la forza delle onde che scavano la roccia senza fare rumore.",
-"Una gelosia verde acido, il ronzio di un insetto che non smette di pungere.",
-"Una stanchezza color cenere, la polvere che si deposita sui sogni dimenticati.",
-"Un’attesa color ambra, la resina che imprigiona un istante per l’eternità.",
-"Una rabbia arancione e distruttiva, il ruggito di un incendio in una prateria secca.",
-"Un sollievo bianco latte, la morbidezza di una nuvola che copre un dolore troppo forte.",
-"Una timidezza color lavanda, il profumo di un segreto sussurrato a metà.",
-"Un rimpianto color fumo, l’ombra di un treno che è già partito dal binario.",
-"Una curiosità giallo limone, il lampo di un’idea che accende il buio.",
-"Un orgoglio porpora e pesante, il mantello di un re che non ha più un regno.",
-"Una speranza verde germoglio, la testardaggine di un fiore che spacca l’asfalto.",
-"Un vuoto nero e profondo, l’assenza di gravità in una stanza senza pareti.",
-"Una tenerezza rosa cipria, il battito d’ali di una farfalla sulla pelle.",
-"Un sospetto color petrolio, una macchia scura che si allarga su un pensiero limpido.",
-"Una pace color turchese, il respiro lento dei ghiacciai millenari.",
-"Un’amarezza color ruggine, il sapore di un metallo lasciato alle intemperie.",
-"Un desiderio color oro, la scia luminosa di una stella che cade lontano.",
-"Una noia color fango, il tempo che ristagna in una pozzanghera dopo il temporale.",
-"Un incanto color perla, la luce soffusa di un mattino d'inverno.",
-"Una ferocia color rubino, il taglio netto di un vetro che brilla sotto il sole.",
-"Un’armonia color smeraldo, il canto coordinato di una foresta all'alba.",
-"Una confusione color nebbia, un labirinto di specchi dove ogni strada sembra la stessa."];
+        const RANDOM_EMOTIONS = [
+            "Un brivido dorato nell'alba, come il silenzio della collina.",
+            "Una malinconia profonda, un mare blu che inghiotte ogni luce.",
+            "Una rabbia fiammeggiante, il ruggito del fuoco che divora la notte.",
+            "Un riposo sereno tra i prati verdi, dove il tempo si ferma.",
+            "Un'ansia viola che stringe il petto, un'ombra inquieta nel buio."
+        ];
 
         function insertRandomEmotion() {
             const textarea = document.getElementById("emotion-input");
             const idx = Math.floor(Math.random() * RANDOM_EMOTIONS.length);
             textarea.value = RANDOM_EMOTIONS[idx];
-            textarea.focus();
-            textarea.style.borderColor = "var(--accent)";
-            setTimeout(() => { textarea.style.borderColor = ""; }, 1200);
+            textarea.dispatchEvent(new Event('input'));
         }
 
+        const API_BASE = window.location.port === "8000" ? "" : "http://127.0.0.1:8000";
+
         // ------------------------------------------------------------------
-        // WEB AUDIO API & ONDA ETREA
+        // WEB AUDIO API — MOTORE AVANZATO
         // ------------------------------------------------------------------
-        let audioCtx = null;
-        let analyser = null;
-        let activeNodes = [];
-        let lastMelody = null;
-        let animFrameId = null;
+        let audioCtx = null, analyser = null, activeNodes = [], lastAudioTarget = null;
 
         function initAudio() {
             if (!audioCtx) {
                 audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 1024;
+                analyser.fftSize = 2048;
                 analyser.connect(audioCtx.destination);
-                drawEtherealOscilloscope();
+                drawOscilloscope();
             }
         }
 
-        // Oscilloscopio fluido ed "etereo"
-        function drawEtherealOscilloscope() {
+        function drawOscilloscope() {
             const canvas = document.getElementById("oscilloscope");
-            const canvasCtx = canvas.getContext("2d");
-
-            canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-            canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-
+            const ctx = canvas.getContext("2d");
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
 
             function draw() {
-                animFrameId = requestAnimationFrame(draw);
+                requestAnimationFrame(draw);
                 analyser.getByteTimeDomainData(dataArray);
-
-                // Pulisce il canvas
-                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-
-                canvasCtx.lineWidth = 2.5 * window.devicePixelRatio;
-                // Onda morbida bianca
-                canvasCtx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                canvasCtx.beginPath();
-
-                const sliceWidth = canvas.width * 1.0 / bufferLength;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#2c2a26';
+                ctx.beginPath();
+                const sliceWidth = canvas.width / bufferLength;
                 let x = 0;
-
                 for (let i = 0; i < bufferLength; i++) {
                     const v = dataArray[i] / 128.0;
-                    // L'onda appare solo in basso fluidamente
-                    const y = (v * (canvas.height / 2)) + (canvas.height / 4);
-
-                    if (i === 0) { canvasCtx.moveTo(x, y); }
-                    else { canvasCtx.lineTo(x, y); }
+                    const y = v * canvas.height / 2;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
                     x += sliceWidth;
                 }
-                canvasCtx.lineTo(canvas.width, canvas.height / 2);
-                canvasCtx.stroke();
+                ctx.lineTo(canvas.width, canvas.height / 2);
+                ctx.stroke();
             }
             draw();
         }
 
-        let isPlaying = false;
-
-        function setIsPlaying(val) {
-            isPlaying = val;
-            const container = document.getElementById('data-container');
-            if (isPlaying) container.classList.add('is-playing');
-            else container.classList.remove('is-playing');
-        }
-
-        function playMelody(melody) {
-            if (!melody || !melody.length) return;
+        /**
+         * Sintetizza il suono usando i parametri psicoacustici completi.
+         */
+        function playTarget(target) {
+            if (!target) return;
             initAudio();
-
-            activeNodes.forEach(n => {
-                try {
-                    n.gain.cancelScheduledValues(audioCtx.currentTime);
-                    n.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
-                    n.osc.stop(audioCtx.currentTime + 0.2);
-                } catch (e) { }
+            
+            // Ferma suoni precedenti con dissolvenza rapida
+            activeNodes.forEach(n => { 
+                try { 
+                    n.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+                    n.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+                    n.osc.stop(audioCtx.currentTime + 0.2); 
+                } catch(e){} 
             });
             activeNodes = [];
 
-            let startTime = audioCtx.currentTime + 0.1;
-            setIsPlaying(true);
+            const now = audioCtx.currentTime;
+            const startTime = now + 0.05;
 
-            let maxTime = startTime;
+            // 1. Oscillatore
+            const osc = audioCtx.createOscillator();
+            osc.type = target.waveform;
+            osc.frequency.setValueAtTime(target.pitch_hz, startTime);
 
-            melody.forEach(note => {
-                const osc = audioCtx.createOscillator();
-                osc.type = note.wave || "sine";
-                osc.frequency.setValueAtTime(note.freq, startTime);
+            // 2. Filtro Lowpass (Morbidezza del timbro)
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = "lowpass";
+            filter.frequency.setValueAtTime(target.filter_cutoff_hz, startTime);
+            filter.Q.setValueAtTime(1, startTime);
 
-                const gainNode = audioCtx.createGain();
-                gainNode.gain.setValueAtTime(0, startTime);
+            // 3. Gain con Inviluppo (Attacco e Release/Reverb)
+            const gain = audioCtx.createGain();
+            gain.gain.setValueAtTime(0, startTime);
+            
+            const attackTime = target.attack_time_ms / 1000;
+            // Il riverbero del backend controlla la durata totale (release)
+            const sustainTime = 2.0; 
+            const releaseTime = sustainTime + (target.reverb_mix * 4.0); 
 
-                const attackEnd = startTime + (note.duration * 0.2);
-                gainNode.gain.linearRampToValueAtTime(0.25, attackEnd);
+            // Rampa di attacco
+            gain.gain.linearRampToValueAtTime(target.amplitude * 0.4, startTime + attackTime);
+            
+            // Sostegno e rilascio
+            gain.gain.setValueAtTime(target.amplitude * 0.4, startTime + sustainTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + releaseTime);
 
-                const releaseStart = startTime + (note.duration * 0.8);
-                gainNode.gain.setValueAtTime(0.25, releaseStart);
+            // Connessioni
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(analyser);
 
-                const noteEnd = startTime + note.duration;
-                gainNode.gain.linearRampToValueAtTime(0, noteEnd);
+            osc.start(startTime);
+            osc.stop(startTime + releaseTime + 0.1);
 
-                osc.connect(gainNode);
-                gainNode.connect(analyser);
-
-                osc.start(startTime);
-                osc.stop(noteEnd + 0.1);
-
-                activeNodes.push({ osc, gain: gainNode.gain });
-                startTime += note.duration + 0.05;
-
-                if (noteEnd > maxTime) maxTime = noteEnd;
-            });
-
-            // Disattiva il bagliore quando la melodia finisce
-            setTimeout(() => {
-                setIsPlaying(false);
-            }, (maxTime - audioCtx.currentTime) * 1000);
+            activeNodes.push({ osc, gain });
         }
 
-        function replaySound() {
-            if (lastMelody) {
-                playMelody(lastMelody);
+        function replaySound() { if (lastAudioTarget) playTarget(lastAudioTarget); }
+
+        // ------------------------------------------------------------------
+        // THEME & UTILS
+        // ------------------------------------------------------------------
+        function hsvToHex(h, s, v) {
+            h /= 360; s /= 100; v /= 100;
+            let i = Math.floor(h * 6);
+            let f = h * 6 - i;
+            let p = v * (1 - s);
+            let q = v * (1 - f * s);
+            let t = v * (1 - (1 - f) * s);
+            let r, g, b;
+            switch (i % 6) {
+                case 0: r = v, g = t, b = p; break;
+                case 1: r = q, g = v, b = p; break;
+                case 2: r = p, g = v, b = t; break;
+                case 3: r = p, g = q, b = v; break;
+                case 4: r = t, g = p, b = v; break;
+                case 5: r = v, g = p, b = q; break;
             }
+            const toHex = x => Math.round(x * 255).toString(16).padStart(2, '0');
+            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+        }
+
+        function updateColors(hex) {
+            const blobs = [document.getElementById("blob1"), document.getElementById("blob2"), document.getElementById("blob3")];
+            blobs[0].style.backgroundColor = hex;
+            document.getElementById("color-swatch").style.backgroundColor = hex;
         }
 
         // ------------------------------------------------------------------
-        // AGGIORNAMENTO COLORI (BLOB E VARIABILI)
+        // LIVE PROCESSING (DEBOUNCED)
         // ------------------------------------------------------------------
-        function hexToRgb(hex) {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            if (!result) return { r: 100, g: 100, b: 200 };
-            return {
-                r: parseInt(result[1], 16),
-                g: parseInt(result[2], 16),
-                b: parseInt(result[3], 16),
-            };
-        }
+        let debounceTimer;
+        const textarea = document.getElementById("emotion-input");
 
-        function updateBlobColors(hex) {
-            document.documentElement.style.setProperty('--accent', hex);
+        textarea.addEventListener("input", () => {
+            clearTimeout(debounceTimer);
+            document.getElementById("live-indicator").classList.add("is-processing");
+            document.getElementById("status-text").textContent = "L'animo riflette...";
+            debounceTimer = setTimeout(processLive, 800);
+        });
 
-            const { r, g, b } = hexToRgb(hex);
-
-            document.getElementById("blob1").style.backgroundColor = `rgb(${r}, ${g}, ${b})`;
-            document.getElementById("blob2").style.backgroundColor = `rgb(${255 - r}, ${255 - g}, ${255 - b})`;
-            document.getElementById("blob3").style.backgroundColor = `rgb(${Math.floor(r * 0.5)}, ${Math.floor(g * 0.5)}, ${Math.floor(b * 0.5)})`;
-
-            document.getElementById("swatch-glow").style.backgroundColor = hex;
-        }
-
-        function renderColorList(colors) {
-            const list = document.getElementById("colors-list");
-            list.replaceChildren();
-
-            (colors || []).forEach((color, index) => {
-                const item = document.createElement("div");
-                item.className = "ranked-color";
-
-                const rank = document.createElement("span");
-                rank.className = "rank-number";
-                rank.textContent = String(color.rank || index + 1).padStart(2, "0");
-
-                const swatch = document.createElement("span");
-                swatch.className = "rank-swatch";
-                swatch.style.backgroundColor = color.hex || "#777777";
-
-                const copy = document.createElement("div");
-                copy.className = "rank-copy";
-
-                const title = document.createElement("span");
-                title.className = "rank-title";
-                title.textContent = color.name || "Colore";
-
-                const motivation = document.createElement("span");
-                motivation.className = "rank-motivation";
-                motivation.textContent = color.motivation || "Motivazione non disponibile.";
-
-                const hex = document.createElement("span");
-                hex.className = "rank-hex";
-                hex.textContent = (color.hex || "").toUpperCase();
-
-                copy.append(title, motivation);
-                item.append(rank, swatch, copy, hex);
-                list.appendChild(item);
-            });
-        }
-
-        // ------------------------------------------------------------------
-        // LOGICA PRINCIPALE
-        // ------------------------------------------------------------------
-        async function handleSonify() {
-            const textarea = document.getElementById("emotion-input");
+        async function processLive() {
             const text = textarea.value.trim();
-            const k = Number(document.getElementById("color-count").value) || 1;
-
-            if (!text) {
-                textarea.focus();
-                textarea.style.borderColor = "rgba(200, 60, 60, 0.7)";
-                setTimeout(() => { textarea.style.borderColor = ""; }, 1500);
+            if (text.length < 3) {
+                document.getElementById("live-indicator").classList.remove("is-processing");
+                document.getElementById("status-text").textContent = "Pronto all'ascolto";
                 return;
             }
 
-            const btn = document.getElementById("sonify-btn");
-            btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span> In ascolto...';
-
             try {
-                // Rimuovi visibilità per re-trigger l'animazione sfalsata
-                document.getElementById("result-area").classList.remove("visible");
-
-                const response = await fetch("/sonify", {
+                const res = await fetch(`${API_BASE}/process`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ text, k }),
+                    body: JSON.stringify({ text })
                 });
-
-                if (!response.ok) throw new Error(`Errore HTTP: ${response.status}`);
-
-                const data = await response.json();
-                const mixHex = data.mix_hex || data.hex;
-
-                updateBlobColors(mixHex);
-
-                // Aggiorna eleganti dati scientifici
-                document.getElementById("color-swatch").style.backgroundColor = mixHex;
-                document.getElementById("data-hex").textContent = mixHex.toUpperCase();
-                document.getElementById("data-freq").textContent = data.freq.toFixed(1) + " Hz";
-                renderColorList(data.colors || []);
-
-                // Valorizzazione artistica della forma d'onda ("Forma")
-                const waveTranslations = {
-                    'sine': 'Pura e Sinuosa',
-                    'triangle': 'Cristallina e Delicata',
-                    'square': 'Profonda e Vibrante',
-                    'sawtooth': 'Ruvida e Tagliente'
-                };
-                const waveArtistic = waveTranslations[data.wave.toLowerCase()] || data.wave;
-                document.getElementById("data-wave").textContent = waveArtistic;
-
-                document.getElementById("quote-text").textContent = data.quote;
-
-                if (data.artistic_description) {
-                    document.getElementById("artistic-text").textContent = data.artistic_description;
-                }
-
-                // Aspetta un istante, e attiva l'animazione d'ingresso sfalsata
-                setTimeout(() => {
-                    document.getElementById("result-area").classList.add("visible");
-
-                    if (data.melody) {
-                        lastMelody = data.melody;
-                        playMelody(data.melody);
-                    } else if (data.freq) {
-                        lastMelody = [{ freq: data.freq, duration: 5.0, wave: data.wave || 'sine' }];
-                        playMelody(lastMelody);
-                    }
-                }, 200);
-
-            } catch (error) {
-                console.error("Errore durante la sonificazione:", error);
-                document.getElementById("quote-text").textContent =
-                    "Errore di connessione. Assicurati che il backend sia avviato.";
-                renderColorList([]);
-                document.getElementById("result-area").classList.add("visible");
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                
+                updateUI(data);
+            } catch (e) {
+                console.error(e);
             } finally {
-                btn.disabled = false;
-                btn.innerHTML = "Sonifica l'Emozione";
+                document.getElementById("live-indicator").classList.remove("is-processing");
+                document.getElementById("status-text").textContent = "Sincronizzato";
             }
         }
 
-        document.getElementById("color-count").addEventListener("input", (e) => {
-            document.getElementById("color-count-value").textContent = e.target.value;
-        });
+        function updateUI(data) {
+            const hsv = data.visual_state.hsv;
+            const hex = hsvToHex(hsv.h, hsv.s, hsv.v);
+            updateColors(hex);
 
-        document.getElementById("emotion-input").addEventListener("keydown", (e) => {
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-                e.preventDefault();
-                handleSonify();
-            }
-        });
+            document.getElementById("data-color-name").textContent = data.visual_state.color_name;
+            document.getElementById("data-freq").textContent = data.audio_target_state.pitch_hz.toFixed(0) + " Hz";
+            document.getElementById("data-conf").textContent = (data.semantic_analysis.confidence * 100).toFixed(0) + "%";
+            
+            document.getElementById("quote-text").textContent = data.visual_state.goethe_quote;
+            document.getElementById("artistic-text").textContent = data.visual_state.artistic_description;
+
+            document.getElementById("result-area").classList.add("visible");
+
+            lastAudioTarget = data.audio_target_state;
+            
+            // Suona usando il nuovo motore a parametri completi
+            playTarget(lastAudioTarget);
+        }
     </script>
 </body>
 

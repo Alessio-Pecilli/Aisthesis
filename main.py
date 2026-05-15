@@ -1,172 +1,146 @@
-import os
-import re
-import chromadb
-import ollama
+"""
+Aisthesis — Backend FastAPI
+Pipeline: classificazione emozionale (Transformers, encoder-only) → mapping cromatico
+Goethe HSV O(1) → parametri sonori deterministici (psychoacoustic avanzato).
+
+Nessuna dipendenza da LLM generativi, agenti o RAG: solo `transformers` per FEEL-IT.
+"""
+
+from __future__ import annotations
+
+import logging
+from contextlib import asynccontextmanager
+from typing import Any, Literal, Optional
+
+import torch
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from typing import List, Dict, Any
-
-from goetheColor import parse_emotion
-
-# --- 1. SETUP DEL DATABASE (Percorsi Assoluti per evitare bug di Uvicorn) ---
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "chroma_db")
-
-PLUS_SECTIONS = (
-    "== GIALLO ",
-    "== ROSSO-GIALLO",
-    "== GIALLO-ROSSO",
-    "== BLU-ROSSO",
-)
-MINUS_SECTIONS = (
-    "== BLU ",
-    "== ROSSO-BLU",
-)
-NEUTRAL_SECTIONS = (
-    "== VERDE ",
-    "== BLU-ROSSO",
+from transformers import (
+    AutoModelForSequenceClassification,
+    PreTrainedTokenizerFast,
+    pipeline,
 )
 
-MIN_CONTEXT_DOCS = 4
-MAX_GOETHE_COLORS = 7
-VALID_WAVES = {"sine", "square", "sawtooth", "triangle"}
+# ---------------------------------------------------------------------------
+# Costanti — soglia emozione e psychoacoustic
+# ---------------------------------------------------------------------------
 
-HEX_RE = re.compile(r"^#?[0-9a-fA-F]{6}$")
+CONFIDENCE_THRESHOLD = 0.35
+BASE_FREQ_HZ = 110.0  # Abbassato a 110Hz (A2) per dare più corpo ai bassi
 
-def rank_docs_by_polarity(docs: List[str], polarity: str) -> List[str]:
-    allowed_sections = {
-        "plus": PLUS_SECTIONS,
-        "minus": MINUS_SECTIONS,
-        "neutral": NEUTRAL_SECTIONS,
-    }.get(polarity)
+# Cutoff LPF: esponenziale S ∈ [0,100] → [150 Hz, 12000 Hz]
+FILTER_CUTOFF_BASE_HZ = 150.0
+FILTER_CUTOFF_EXP_BASE = 80.0
 
-    if not allowed_sections:
-        return docs
+# Attacco: V=100 → percussivo (5 ms), V=0 → ambient (3000 ms)
+ATTACK_FAST_MS = 5.0
+ATTACK_SLOW_MS = 3000.0
 
-    matching_docs = [
-        doc for doc in docs
-        if doc.strip().startswith(allowed_sections)
-    ]
-    other_docs = [doc for doc in docs if doc not in matching_docs]
-    return matching_docs + other_docs
+# Riverbero/Release: V basso → cavernoso/lungo; V alto → asciutto/corto
+REVERB_WET_MAX = 0.9
 
-def is_goethe_color_doc(doc: str) -> bool:
-    return doc.strip().startswith("==")
+EmotionName = Literal["joy", "sadness", "anger", "fear", "neutral"]
+WaveformName = Literal["sine", "triangle", "sawtooth"]
 
-def extract_goethe_heading(doc: str) -> str:
-    return doc.strip().splitlines()[0].replace("=", "").strip()
+# Mappatura HSV (Hue 0–360, S e V 0–100)
+# S < 45: sine, S < 75: triangle, else: sawtooth
+GOETHE_DATA: dict[str, dict[str, Any]] = {
+    "joy": {
+        "hsv": (60.0, 40.0, 100.0), # Giallo: Sine, Attacco Rapido, Brillante
+        "name": "Giallo (Yellow)",
+        "quote": "Il colore più vicino alla luce... possiede un carattere sereno, lieto, dolcemente eccitante.",
+        "description": "L'occhio ne viene allietato, l'animo si rasserena; un calore immediato ci investe.",
+    },
+    "anger": {
+        "hsv": (0.0, 100.0, 100.0), # Vermiglio: Sawtooth, Attacco Percussivo, Aggressivo
+        "name": "Giallo-Rosso (Vermiglio)",
+        "quote": "Il culmine del lato attivo... spinge all'azione; è il colore del fuoco e della passione.",
+        "description": "Esercita un fascino incredibile che spinge all'azione; è l'energia vitale al suo apice.",
+    },
+    "sadness": {
+        "hsv": (240.0, 30.0, 40.0), # Blu: Sine, Attacco Lento, Profondo/Scuro
+        "name": "Blu (Blue)",
+        "quote": "Il colore più vicino all'oscurità... crea una sensazione di vuoto e di distanza.",
+        "description": "Mentre il giallo porta luce, il blu sembra attirare lo sguardo verso l'infinito, lasciando un'impressione di solitudine.",
+    },
+    "fear": {
+        "hsv": (280.0, 60.0, 30.0), # Violetto: Triangle, Attacco Lento, Inquieto
+        "name": "Rosso-Blu (Violetto)",
+        "quote": "Rispetto al blu puro, questo colore appare più inquieto ed oppressivo.",
+        "description": "Evoca una tristezza che tende all'oppressione; un colore che ha qualcosa di fastidioso.",
+    },
+    "neutral": {
+        "hsv": (120.0, 60.0, 80.0), # Verde: Triangle, Attacco Morbido, Equilibrato
+        "name": "Verde (Green)",
+        "quote": "Il prodotto dell'unione tra Giallo e Blu in perfetto equilibrio... un punto di sosta perfetto.",
+        "description": "L'occhio e l'animo trovano in questo colore un riposo reale. Non vuole né può andare oltre.",
+    },
+}
 
-def limit_context_docs(docs: List[str], requested_k: int) -> List[str]:
-    context_size = min(len(docs), max(requested_k, MIN_CONTEXT_DOCS))
-    return docs[:context_size]
+LABEL_ALIASES: dict[str, EmotionName] = {
+    "joy": "joy",
+    "gioia": "joy",
+    "anger": "anger",
+    "rabbia": "anger",
+    "sadness": "sadness",
+    "tristezza": "sadness",
+    "fear": "fear",
+    "paura": "fear",
+}
 
-def llm_num_predict(requested_k: int, retry: int = 0) -> int:
-    return min(2600, 550 + (requested_k * 230) + (retry * 700))
+logger = logging.getLogger("aisthesis")
+logging.basicConfig(level=logging.INFO)
 
-def freq_range_for_polarity(polarity: str) -> tuple[float, float]:
-    if polarity == "minus":
-        return 100.0, 300.0
-    if polarity == "plus":
-        return 400.0, 800.0
-    return 250.0, 500.0
+_classifier: Optional[Any] = None
+MODEL_ID = "MilaNLProc/feel-it-italian-emotion"
 
-def clamp(value: float, minimum: float, maximum: float) -> float:
-    return max(minimum, min(maximum, value))
 
-def normalize_wave(wave: str) -> str:
-    normalized = (wave or "sine").lower()
-    return normalized if normalized in VALID_WAVES else "sine"
-
-def normalize_frequency(value: Any, polarity: str) -> float:
-    minimum, maximum = freq_range_for_polarity(polarity)
-    try:
-        numeric = abs(float(value))
-    except (TypeError, ValueError):
-        numeric = (minimum + maximum) / 2
-    return clamp(numeric, minimum, maximum)
-
-def normalize_melody(melody: List[Dict[str, Any]], polarity: str, fallback_wave: str) -> List[Dict[str, Any]]:
-    normalized_notes: List[Dict[str, Any]] = []
-    for note in melody[:5]:
-        freq = normalize_frequency(note.get("freq"), polarity)
-        try:
-            duration = clamp(abs(float(note.get("duration", 0.45))), 0.1, 3.0)
-        except (TypeError, ValueError):
-            duration = 0.45
-        normalized_notes.append(
-            {
-                "freq": freq,
-                "duration": duration,
-                "wave": normalize_wave(note.get("wave", fallback_wave)),
-            }
-        )
-    return normalized_notes
-
-def normalize_hex(hex_value: str) -> str:
-    if not HEX_RE.match(hex_value or ""):
-        raise ValueError(f"Codice HEX non valido: {hex_value}")
-    normalized = hex_value if hex_value.startswith("#") else f"#{hex_value}"
-    return normalized.upper()
-
-def hex_to_rgb(hex_value: str) -> tuple[int, int, int]:
-    clean = normalize_hex(hex_value).lstrip("#")
-    return (
-        int(clean[0:2], 16),
-        int(clean[2:4], 16),
-        int(clean[4:6], 16),
+def load_classifier() -> Any:
+    """
+    Carica modello e tokenizer una sola volta.
+    `PreTrainedTokenizerFast` evita problemi noti del tokenizer CamemBERT lento
+    con alcune combinazioni Python / sentencepiece.
+    """
+    device = 0 if torch.cuda.is_available() else -1
+    logger.info("Inizializzazione pipeline su device: %s", device)
+    tokenizer = PreTrainedTokenizerFast.from_pretrained(MODEL_ID)
+    model = AutoModelForSequenceClassification.from_pretrained(MODEL_ID)
+    return pipeline(
+        "text-classification",
+        model=model,
+        tokenizer=tokenizer,
+        device=device,
+        truncation=True,
+        max_length=512,
     )
 
-def mix_hex_colors(hex_values: List[str]) -> str:
-    rgbs = [hex_to_rgb(hex_value) for hex_value in hex_values]
-    red = round(sum(rgb[0] for rgb in rgbs) / len(rgbs))
-    green = round(sum(rgb[1] for rgb in rgbs) / len(rgbs))
-    blue = round(sum(rgb[2] for rgb in rgbs) / len(rgbs))
-    return f"#{red:02X}{green:02X}{blue:02X}"
 
-def extract_goethe_quote(color_name: str, docs: List[str]) -> str | None:
-    if not docs:
-        return None
-
-    target = color_name.lower()
-    selected_doc = docs[0]
-    for doc in docs:
-        heading = doc.strip().splitlines()[0].replace("=", "").strip().lower()
-        if target in heading or heading in target:
-            selected_doc = doc
-            break
-
-    quote_lines = [
-        line.strip()
-        for line in selected_doc.splitlines()
-        if line.strip() and not line.strip().startswith(("==", "#"))
-    ]
-    quote_text = " ".join(quote_lines).split(".")[0].strip()
-    if not quote_text:
-        return None
-    return f"{quote_text}. - Goethe"
-
-def get_collection():
-    """Funzione che recupera il database in modo sicuro al momento del bisogno"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global _classifier
+    logger.info("Caricamento modello %s …", MODEL_ID)
     try:
-        chroma_client = chromadb.PersistentClient(path=DB_PATH)
-        return chroma_client.get_collection(name="goethe_colors")
+        _classifier = load_classifier()
+        logger.info("Modello pronto.")
     except Exception as e:
-        print(f"\n[!] ERRORE INTERNO CHROMA DB: {e}\n")
-        return None
+        logger.error("Errore critico caricamento modello: %s", e)
+        raise
+    yield
+    _classifier = None
 
-# --- 2. INIZIALIZZAZIONE APP E CORS ---
+
 app = FastAPI(
     title="Aisthesis API",
-    version="1.0.0",
+    version="3.2.0",
+    lifespan=lifespan,
 )
 
-# IL CORS E' FONDAMENTALE PER NON AVERE "NETWORK ERROR" NEL FRONTEND
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -174,234 +148,229 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory="static", html=True), name="static")
 
+
 @app.get("/", include_in_schema=False)
 async def root():
     return RedirectResponse(url="/static/index.html")
+
 
 @app.get("/favicon.ico", include_in_schema=False)
 async def favicon():
     return FileResponse("static/favicon.svg")
 
-class SonifyRequest(BaseModel):
-    text: str
-    k: int = Field(default=1, ge=1, le=MAX_GOETHE_COLORS)
 
-class RankedColor(BaseModel):
-    rank: int
-    name: str
-    hex: str
-    motivation: str
+# ---------------------------------------------------------------------------
+# Schemi Pydantic
+# ---------------------------------------------------------------------------
 
-class SonifyLLMResponse(BaseModel):
-    colors: List[RankedColor]
-    freq: float
-    wave: str
-    quote: str
+
+class ProcessRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=8000)
+
+
+class SemanticAnalysis(BaseModel):
+    emotion: EmotionName
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
+class HSVState(BaseModel):
+    h: float = Field(..., ge=0.0, le=360.0)
+    s: float = Field(..., ge=0.0, le=100.0)
+    v: float = Field(..., ge=0.0, le=100.0)
+
+
+class VisualState(BaseModel):
+    color_name: str
+    hsv: HSVState
+    goethe_quote: str
     artistic_description: str
-    melody: List[Dict[str, Any]]
 
-class SonifyResponse(BaseModel):
-    hex: str
-    mix_hex: str
-    colors: List[RankedColor]
-    freq: float
-    wave: str
-    quote: str
-    artistic_description: str
-    melody: List[Dict[str, Any]]
 
-def generate_sonify_llm_response(prompt: str, requested_k: int) -> SonifyLLMResponse:
-    last_error: Exception | None = None
+class AudioTargetState(BaseModel):
+    """Parametri per motore di sintesi (SuperCollider, Web Audio, ecc.)."""
 
-    for retry in range(2):
-        response_llm = ollama.chat(
-            model="llama3",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Sei l'intelligenza artistica di Aisthesis. "
-                        "Rispondi solo con JSON valido, senza markdown."
-                    ),
-                },
-                {"role": "user", "content": prompt},
-            ],
-            format="json",
-            options={
-                "temperature": 0.2 if retry == 0 else 0.1,
-                "num_predict": llm_num_predict(requested_k, retry),
-                "num_ctx": 4096,
-            },
-        )
+    waveform: WaveformName
+    pitch_hz: float = Field(..., gt=0.0)
+    filter_cutoff_hz: float = Field(..., gt=0.0)
+    amplitude: float = Field(..., ge=0.0, le=1.0)
+    attack_time_ms: float = Field(..., gt=0.0)
+    reverb_mix: float = Field(..., ge=0.0, le=1.0)
 
-        json_finale = response_llm["message"]["content"]
-        try:
-            parsed = SonifyLLMResponse.model_validate_json(json_finale)
-            if len(parsed.colors) < requested_k:
-                raise ValueError(
-                    f"Il motore LLM ha restituito {len(parsed.colors)} colori invece di {requested_k}."
-                )
-            return parsed
-        except Exception as e:
-            last_error = e
-            print(f"\n[!] JSON LLM non valido, retry {retry + 1}/2: {e}", flush=True)
 
-    raise last_error or ValueError("Il motore LLM non ha restituito JSON valido.")
+class ProcessResponse(BaseModel):
+    input_text: str
+    semantic_analysis: SemanticAnalysis
+    visual_state: VisualState
+    audio_target_state: AudioTargetState
 
-@app.post("/sonify", response_model=SonifyResponse)
-async def sonify_emotion(request: SonifyRequest) -> SonifyResponse:
+
+# ---------------------------------------------------------------------------
+# Dominio: emozione → HSV → audio
+# ---------------------------------------------------------------------------
+
+
+def _normalize_label(raw: str) -> str:
+    return raw.strip().lower()
+
+
+def map_model_label_to_emotion(label: str) -> EmotionName:
+    key = _normalize_label(label)
+    if key.startswith("label_"):
+        key = key.replace("label_", "", 1)
     
-    # PERCORSO 1: Il database non è raggiungibile (solleva eccezione, quindi non serve return)
-    collection = get_collection()
-    if collection is None:
-         raise HTTPException(status_code=500, detail="Database vettoriale non trovato o bloccato.")
+    # Check mapping
+    mapped = LABEL_ALIASES.get(key)
+    if mapped:
+        return mapped
+    
+    # Substring match for resilience
+    for alias, emotion in LABEL_ALIASES.items():
+        if alias in key:
+            return emotion
+            
+    logger.warning("Etichetta modello non mappata: %r (key=%r) → neutral", label, key)
+    return "neutral"
 
-    stage = "inizializzazione"
+
+def run_emotion_inference(text: str, clf: Any) -> tuple[EmotionName, float]:
+    """Top-1 FEEL-IT; score = softmax sulla classe predetta."""
+    out = clf(text, top_k=4, truncation=True, max_length=512)
+    
+    # Se out è una lista nested (alcune versioni di transformers)
+    if isinstance(out, list) and len(out) > 0 and isinstance(out[0], list):
+        out = out[0]
+        
+    logger.info("Raw Inference Output: %s", out)
+    
+    if not out:
+        return "neutral", 0.0
+        
+    best = max(out, key=lambda x: float(x.get("score", 0.0)))
+    raw_label = str(best.get("label", ""))
+    score = float(best.get("score", 0.0))
+    
+    emotion = map_model_label_to_emotion(raw_label)
+    
+    if score < CONFIDENCE_THRESHOLD:
+        logger.info("Confidence %.2f below threshold %.2f -> neutral", score, CONFIDENCE_THRESHOLD)
+        emotion = "neutral"
+        
+    return emotion, score
+
+
+def goethe_data_for_emotion(emotion: EmotionName) -> dict[str, Any]:
+    return GOETHE_DATA[emotion]
+
+
+def waveform_from_saturation(s: float) -> WaveformName:
+    """Complessità armonica crescente con la saturazione cromatica."""
+    if s < 45.0:
+        return "sine"
+    if s < 75.0:
+        return "triangle"
+    return "sawtooth"
+
+
+def hsv_to_audio_target(h: float, s: float, v: float) -> dict[str, Any]:
+    """
+    Mapping deterministico HSV → parametri sonori (ampia differenziazione).
+    """
+    s_clamped = max(0.0, min(100.0, s))
+    v_clamped = max(0.0, min(100.0, v))
+
+    pitch_hz = BASE_FREQ_HZ * (2.0 ** (h / 360.0))
+    waveform = waveform_from_saturation(s_clamped)
+
+    # S=0 → 200 Hz; S=100 → 8000 Hz (crescita esponenziale)
+    filter_cutoff_hz = FILTER_CUTOFF_BASE_HZ * (
+        FILTER_CUTOFF_EXP_BASE ** (s_clamped / 100.0)
+    )
+
+    amplitude = v_clamped / 100.0
+
+    # V basso → lento; V alto → rapido
+    t_v = v_clamped / 100.0
+    attack_time_ms = ATTACK_SLOW_MS + (ATTACK_FAST_MS - ATTACK_SLOW_MS) * t_v
+
+    # V basso → più riverbero (suono lontano / vuoto)
+    reverb_mix = REVERB_WET_MAX * (1.0 - t_v)
+
+    return {
+        "waveform": waveform,
+        "pitch_hz": round(pitch_hz, 4),
+        "filter_cutoff_hz": round(filter_cutoff_hz, 4),
+        "amplitude": round(amplitude, 4),
+        "attack_time_ms": round(attack_time_ms, 4),
+        "reverb_mix": round(reverb_mix, 4),
+    }
+
+
+def build_process_response(text: str, emotion: EmotionName, confidence: float) -> ProcessResponse:
+    data = goethe_data_for_emotion(emotion)
+    h, s, v = data["hsv"]
+    audio = hsv_to_audio_target(h, s, v)
+    return ProcessResponse(
+        input_text=text,
+        semantic_analysis=SemanticAnalysis(
+            emotion=emotion, confidence=round(float(confidence), 2)
+        ),
+        visual_state=VisualState(
+            color_name=data["name"],
+            hsv=HSVState(h=h, s=s, v=v),
+            goethe_quote=data["quote"],
+            artistic_description=data["description"],
+        ),
+        audio_target_state=AudioTargetState(
+            waveform=audio["waveform"],
+            pitch_hz=audio["pitch_hz"],
+            filter_cutoff_hz=audio["filter_cutoff_hz"],
+            amplitude=audio["amplitude"],
+            attack_time_ms=audio["attack_time_ms"],
+            reverb_mix=audio["reverb_mix"],
+        ),
+    )
+
+
+@app.post("/process", response_model=ProcessResponse)
+async def process_text(request: ProcessRequest) -> ProcessResponse:
+    """
+    POST `{ "text": "..." }` → emozione, stato cromatico Goethe, parametri audio avanzati.
+    """
+    if _classifier is None:
+        raise HTTPException(status_code=503, detail="Modello non ancora caricato.")
+
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=422, detail='Il campo "text" non può essere vuoto.')
+
     try:
-        # 1. Estrazione Emozione
-        stage = "estrazione emozione"
-        risultato_nlp = parse_emotion(request.text)
-        print(f"\n--- NUOVA RICHIESTA ---", flush=True)
-        print(f"Emozione: {risultato_nlp.emozione} | Polarità: {risultato_nlp.polarita.value}", flush=True)
+        emotion, confidence = run_emotion_inference(text, _classifier)
+    except Exception as exc:
+        logger.exception("Errore inferenza: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail="Errore durante la classificazione emotiva.",
+        ) from exc
 
-        # 2. Embedding della query
-        stage = "embedding query"
-        query_embedding = ollama.embeddings(
-            model="nomic-embed-text", 
-            prompt=risultato_nlp.search_query
-        )["embedding"]
+    payload = build_process_response(text, emotion, confidence)
+    logger.info(
+        "process: emotion=%s conf=%.2f waveform=%s pitch=%.1fHz reverb=%.2f len=%d",
+        emotion,
+        confidence,
+        payload.audio_target_state.waveform,
+        payload.audio_target_state.pitch_hz,
+        payload.audio_target_state.reverb_mix,
+        len(text),
+    )
+    return payload
 
-        # 3. Interrogazione di ChromaDB
-        stage = "query ChromaDB"
-        db_size = collection.count()
-        print(f"Documenti totali presenti nel DB: {db_size}", flush=True)
-        if db_size <= 0:
-            raise HTTPException(status_code=500, detail="Database vettoriale vuoto.")
-
-        n_results = db_size
-
-        # Chiediamo a Chroma di restituirci anche le distanze (minore = più simile)
-        risultati_ricerca = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            include=["documents", "distances"] # <-- Aggiungi "distances" qui
-        )
-        
-        # Stampiamo i punteggi per capire cosa sta succedendo
-        print(f"\n--- DEBUG CHROMA DB ---", flush=True)
-        print(f"Distanze calcolate: {risultati_ricerca.get('distances')}", flush=True)
-
-        # 3.1 Estrazione sicura del contesto
-        contesto_goethe = "Il colore giallo è caldo ed eccitante. Il blu è freddo e malinconico."
-        docs_ordinati: List[str] = []
-        docs = risultati_ricerca.get("documents")
-        
-        if docs is not None and len(docs) > 0 and docs[0] is not None and len(docs[0]) > 0:
-            docs_colore = [doc for doc in docs[0] if is_goethe_color_doc(doc)]
-            docs_ordinati = rank_docs_by_polarity(docs_colore, risultato_nlp.polarita.value)
-            docs_contesto = limit_context_docs(docs_ordinati, request.k)
-            contesto_goethe = "\n\n".join(docs_contesto)
-            colori_candidati = "\n".join(
-                f"- {extract_goethe_heading(doc)}"
-                for doc in docs_contesto
-            )
-            print("\n--- CONTESTO RAG TROVATO ---", flush=True)
-            print(contesto_goethe[:100] + "...", flush=True) # Stampa solo i primi 100 caratteri
-        else:
-            colori_candidati = "- Giallo\n- Blu"
-            print("\n[!] Nessun contesto trovato. Uso fallback.", flush=True)
-
-        if not docs_ordinati:
-            raise HTTPException(status_code=500, detail="Nessun documento colore trovato nel database vettoriale.")
-
-        effective_k = min(request.k, len(docs_ordinati), MAX_GOETHE_COLORS)
-
-        # 4. Prompting
-        prompt_sintesi = f"""Analizza i documenti RAG di Goethe e genera una sonificazione.
-
-Emozione rilevata: {risultato_nlp.emozione}
-Polarita goethiana: {risultato_nlp.polarita.value}
-Testo originale: "{request.text}"
-
-Documenti RAG recuperati da Chroma:
-{contesto_goethe}
-
-Colori candidati obbligatori:
-{colori_candidati}
-
-Regole:
-- Usa esclusivamente i documenti RAG qui sopra come fonte Goethe.
-- Per "name" usa solo i colori candidati obbligatori, senza inventarne altri.
-- Scrivi in italiano.
-- Restituisci JSON valido, nessun testo fuori dal JSON.
-- "colors": esattamente {effective_k} colori unici, ordinati per pertinenza.
-- Ogni colore: "rank" da 1 a {effective_k}, "name", "hex" in formato #RRGGBB, "motivation" breve.
-- "freq": numero riferito solo al primo colore. MINUS 100-300, PLUS 400-800, NEUTRAL 250-500.
-- "wave": una tra "sine", "square", "sawtooth", "triangle".
-- "quote": frase breve dai documenti RAG con " - Goethe".
-- "artistic_description": massimo 35 parole.
-- "melody": 4 note, ognuna con "freq", "duration", "wave".
-
-Schema:
-{{
-  "colors": [
-    {{"rank": 1, "name": "Blu", "hex": "#0000FF", "motivation": "Motivo breve"}}
-  ],
-  "freq": 220.0,
-  "wave": "sine",
-  "quote": "Frase Goethe. - Goethe",
-  "artistic_description": "Descrizione breve.",
-  "melody": [
-    {{"freq": 220.0, "duration": 0.4, "wave": "sine"}}
-  ]
-}}
-"""
-        stage = "generazione LLM"
-        risposta_llm = generate_sonify_llm_response(prompt_sintesi, effective_k)
-
-        # 6. Validazione
-        stage = "validazione risposta"
-        colori_validati = risposta_llm.colors[:effective_k]
-        if not colori_validati:
-            raise ValueError("Il motore LLM non ha restituito colori.")
-
-        for index, color in enumerate(colori_validati, start=1):
-            color.rank = index
-            color.hex = normalize_hex(color.hex)
-
-        risposta_llm.freq = normalize_frequency(risposta_llm.freq, risultato_nlp.polarita.value)
-        risposta_llm.wave = normalize_wave(risposta_llm.wave)
-        risposta_llm.melody = normalize_melody(
-            risposta_llm.melody,
-            risultato_nlp.polarita.value,
-            risposta_llm.wave,
-        )
-
-        mix_hex = mix_hex_colors([color.hex for color in colori_validati])
-        quote = extract_goethe_quote(colori_validati[0].name, docs_ordinati) or risposta_llm.quote
-        risposta_validata = SonifyResponse(
-            hex=mix_hex,
-            mix_hex=mix_hex,
-            colors=colori_validati,
-            freq=risposta_llm.freq,
-            wave=risposta_llm.wave,
-            quote=quote,
-            artistic_description=risposta_llm.artistic_description,
-            melody=risposta_llm.melody,
-        )
-        
-        # PERCORSO 2: Tutto è andato bene (Ritorna il SonifyResponse promesso)
-        return risposta_validata
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        # PERCORSO 3: Qualcosa è crashato durante il try. 
-        # Invece di far finire la funzione e restituire None, solleviamo un errore esplicito.
-        print(f"\n[!] ERRORE DURANTE LA GENERAZIONE ({stage}): {e}", flush=True)
-        raise HTTPException(status_code=500, detail=f"Errore interno durante {stage}: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
-    # Rimosso embedding('data\goethe.txt')
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+    uvicorn.run(
+        "main:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=False,
+    )

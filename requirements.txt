@@ -1,13 +1,8 @@
-# --- Backend Web Server ---
+# --- Backend ---
 fastapi
 uvicorn[standard]
 pydantic
 
-# --- RAG & LLM Pipeline ---
-langchain
-langchain-chroma
-langchain-community
-openai
-
-# --- Utilità ---
-python-dotenv
+# --- Emotion classification (encoder-only, Hugging Face) ---
+torch
+transformers
