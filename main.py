@@ -9,6 +9,7 @@ Nessuna dipendenza da LLM generativi, agenti o RAG: solo `transformers` per FEEL
 from __future__ import annotations
 
 import logging
+import re
 from contextlib import asynccontextmanager
 from typing import Any, Literal, Optional
 
@@ -41,6 +42,8 @@ ATTACK_SLOW_MS = 3000.0
 
 # Riverbero/Release: V basso → cavernoso/lungo; V alto → asciutto/corto
 REVERB_WET_MAX = 0.9
+EXPLANATION_TOP_TERMS = 5
+EXPLANATION_MIN_DELTA = 0.01
 
 EmotionName = Literal["joy", "sadness", "anger", "fear", "neutral"]
 WaveformName = Literal["sine", "triangle", "sawtooth"]
@@ -89,6 +92,42 @@ LABEL_ALIASES: dict[str, EmotionName] = {
     "tristezza": "sadness",
     "fear": "fear",
     "paura": "fear",
+}
+
+DISPLAY_STOPWORDS = {
+    "a",
+    "ad",
+    "al",
+    "alla",
+    "con",
+    "da",
+    "del",
+    "della",
+    "di",
+    "e",
+    "ha",
+    "ho",
+    "il",
+    "in",
+    "io",
+    "la",
+    "le",
+    "lo",
+    "ma",
+    "mi",
+    "ne",
+    "nel",
+    "non",
+    "o",
+    "per",
+    "se",
+    "si",
+    "sono",
+    "su",
+    "tra",
+    "tu",
+    "un",
+    "una",
 }
 
 logger = logging.getLogger("aisthesis")
@@ -171,6 +210,27 @@ class ProcessRequest(BaseModel):
 class SemanticAnalysis(BaseModel):
     emotion: EmotionName
     confidence: float = Field(..., ge=0.0, le=1.0)
+    raw_emotion: EmotionName
+    threshold_applied: bool
+
+
+class EmotionScore(BaseModel):
+    emotion: EmotionName
+    label: str
+    score: float = Field(..., ge=0.0, le=1.0)
+
+
+class InfluentialTerm(BaseModel):
+    term: str
+    importance: float = Field(..., ge=0.0, le=1.0)
+
+
+class ExplainabilityState(BaseModel):
+    method: str
+    decision_summary: str
+    top_classes: list[EmotionScore]
+    influential_terms: list[InfluentialTerm]
+    rule_trace: list[str]
 
 
 class HSVState(BaseModel):
@@ -200,6 +260,7 @@ class AudioTargetState(BaseModel):
 class ProcessResponse(BaseModel):
     input_text: str
     semantic_analysis: SemanticAnalysis
+    explainability: ExplainabilityState
     visual_state: VisualState
     audio_target_state: AudioTargetState
 
@@ -232,30 +293,187 @@ def map_model_label_to_emotion(label: str) -> EmotionName:
     return "neutral"
 
 
-def run_emotion_inference(text: str, clf: Any) -> tuple[EmotionName, float]:
-    """Top-1 FEEL-IT; score = softmax sulla classe predetta."""
-    out = clf(text, top_k=4, truncation=True, max_length=512)
+def _run_classifier(text: str, clf: Any, top_k: int = 4) -> list[dict[str, Any]]:
+    out = clf(text, top_k=top_k, truncation=True, max_length=512)
     
     # Se out è una lista nested (alcune versioni di transformers)
     if isinstance(out, list) and len(out) > 0 and isinstance(out[0], list):
         out = out[0]
-        
+
     logger.info("Raw Inference Output: %s", out)
-    
     if not out:
-        return "neutral", 0.0
-        
+        return []
+    return list(out)
+
+
+def _build_top_classes(out: list[dict[str, Any]]) -> list[EmotionScore]:
+    classes: list[EmotionScore] = []
+    for item in sorted(out, key=lambda x: float(x.get("score", 0.0)), reverse=True):
+        label = str(item.get("label", ""))
+        classes.append(
+            EmotionScore(
+                emotion=map_model_label_to_emotion(label),
+                label=label,
+                score=round(float(item.get("score", 0.0)), 4),
+            )
+        )
+    return classes
+
+
+def _score_for_emotion(out: list[dict[str, Any]], emotion: EmotionName) -> float:
+    for item in out:
+        label = str(item.get("label", ""))
+        if map_model_label_to_emotion(label) == emotion:
+            return float(item.get("score", 0.0))
+    return 0.0
+
+
+def _model_emotion_indices(model: Any) -> dict[EmotionName, int]:
+    mapping: dict[EmotionName, int] = {}
+    id2label = getattr(model.config, "id2label", {})
+    for idx, raw_label in id2label.items():
+        emotion = map_model_label_to_emotion(str(raw_label))
+        mapping[emotion] = int(idx)
+    return mapping
+
+
+def _word_spans(text: str) -> list[tuple[int, int, str]]:
+    spans: list[tuple[int, int, str]] = []
+    for match in re.finditer(r"\b[\wÀ-ÖØ-öø-ÿ'-]+\b", text, flags=re.UNICODE):
+        term = match.group(0).strip("'-")
+        if len(term) < 2:
+            continue
+        spans.append((match.start(), match.end(), term))
+    return spans
+
+
+def _is_display_term(term: str) -> bool:
+    normalized = term.strip("'-").lower()
+    return len(normalized) >= 3 and normalized not in DISPLAY_STOPWORDS
+
+
+def explain_prediction(
+    text: str, clf: Any, raw_emotion: EmotionName, raw_score: float
+) -> list[InfluentialTerm]:
+    """
+    Spiegazione locale gradient-based:
+    misura la salienza dei token rispetto al logit della classe predetta
+    e aggrega i contributi sui segmenti di parola.
+    """
+    if raw_emotion == "neutral" or raw_score <= 0.0:
+        return []
+
+    tokenizer = clf.tokenizer
+    model = clf.model
+    if tokenizer is None or model is None:
+        return []
+
+    emotion_indices = _model_emotion_indices(model)
+    target_index = emotion_indices.get(raw_emotion)
+    if target_index is None:
+        logger.warning("Classe %s non trovata in id2label del modello.", raw_emotion)
+        return []
+
+    encoded = tokenizer(
+        text,
+        return_tensors="pt",
+        return_offsets_mapping=True,
+        truncation=True,
+        max_length=512,
+    )
+    offsets = encoded.pop("offset_mapping")[0].tolist()
+    word_scores: dict[tuple[int, int, str], float] = {
+        span: 0.0 for span in _word_spans(text)
+    }
+    if not word_scores:
+        return []
+
+    special_tokens_mask = tokenizer.get_special_tokens_mask(
+        encoded["input_ids"][0].tolist(),
+        already_has_special_tokens=True,
+    )
+
+    model_device = next(model.parameters()).device
+    input_ids = encoded["input_ids"].to(model_device)
+    attention_mask = encoded["attention_mask"].to(model_device)
+
+    model.zero_grad(set_to_none=True)
+    embeddings = model.get_input_embeddings()(input_ids).detach()
+    embeddings.requires_grad_(True)
+    outputs = model(inputs_embeds=embeddings, attention_mask=attention_mask)
+    target_logit = outputs.logits[0, target_index]
+    target_logit.backward()
+
+    gradients = embeddings.grad
+    if gradients is None:
+        return []
+
+    token_scores = (
+        (embeddings[0] * gradients[0]).sum(dim=-1).abs().detach().cpu().tolist()
+    )
+
+    for token_score, (start, end), is_special in zip(token_scores, offsets, special_tokens_mask):
+        if is_special or start == end or token_score <= 0.0:
+            continue
+
+        for span in word_scores:
+            span_start, span_end, _ = span
+            if start >= span_start and end <= span_end:
+                word_scores[span] += float(token_score)
+                break
+
+    max_score = max(word_scores.values(), default=0.0)
+    if max_score <= 0.0:
+        return []
+
+    influential_terms = [
+        InfluentialTerm(term=term, importance=round(score / max_score, 4))
+        for (_, _, term), score in word_scores.items()
+        if (score / max_score) >= EXPLANATION_MIN_DELTA and _is_display_term(term)
+    ]
+    influential_terms.sort(key=lambda item: item.importance, reverse=True)
+    return influential_terms[:EXPLANATION_TOP_TERMS]
+
+
+def run_emotion_inference(text: str, clf: Any) -> dict[str, Any]:
+    """Top-1 FEEL-IT con tracciato completo per explainability."""
+    out = _run_classifier(text, clf)
+    top_classes = _build_top_classes(out)
+
+    if not out:
+        return {
+            "emotion": "neutral",
+            "raw_emotion": "neutral",
+            "confidence": 0.0,
+            "threshold_applied": False,
+            "top_classes": top_classes,
+            "influential_terms": [],
+        }
+
     best = max(out, key=lambda x: float(x.get("score", 0.0)))
     raw_label = str(best.get("label", ""))
     score = float(best.get("score", 0.0))
-    
-    emotion = map_model_label_to_emotion(raw_label)
-    
+    raw_emotion = map_model_label_to_emotion(raw_label)
+    emotion = raw_emotion
+    threshold_applied = False
+
     if score < CONFIDENCE_THRESHOLD:
-        logger.info("Confidence %.2f below threshold %.2f -> neutral", score, CONFIDENCE_THRESHOLD)
+        logger.info(
+            "Confidence %.2f below threshold %.2f -> neutral",
+            score,
+            CONFIDENCE_THRESHOLD,
+        )
         emotion = "neutral"
-        
-    return emotion, score
+        threshold_applied = True
+
+    return {
+        "emotion": emotion,
+        "raw_emotion": raw_emotion,
+        "confidence": score,
+        "threshold_applied": threshold_applied,
+        "top_classes": top_classes,
+        "influential_terms": explain_prediction(text, clf, raw_emotion, score),
+    }
 
 
 def goethe_data_for_emotion(emotion: EmotionName) -> dict[str, Any]:
@@ -305,14 +523,89 @@ def hsv_to_audio_target(h: float, s: float, v: float) -> dict[str, Any]:
     }
 
 
-def build_process_response(text: str, emotion: EmotionName, confidence: float) -> ProcessResponse:
+def build_decision_summary(
+    emotion: EmotionName,
+    raw_emotion: EmotionName,
+    confidence: float,
+    threshold_applied: bool,
+    influential_terms: list[InfluentialTerm],
+) -> str:
+    if threshold_applied:
+        summary = (
+            f"Il modello ha favorito '{raw_emotion}' con score {confidence:.2f}, "
+            f"ma il valore è sotto la soglia {CONFIDENCE_THRESHOLD:.2f}: "
+            f"il sistema restituisce quindi 'neutral'."
+        )
+    else:
+        summary = (
+            f"Il modello assegna il punteggio più alto a '{emotion}' "
+            f"con score {confidence:.2f}."
+        )
+
+    if influential_terms:
+        terms = ", ".join(term.term for term in influential_terms[:3])
+        return f"{summary} Le parole più rilevanti per questa decisione sono: {terms}."
+
+    return (
+        f"{summary} Nessuna parola singola ha mostrato un impatto forte: "
+        "la decisione sembra dipendere dal contesto complessivo."
+    )
+
+
+def build_rule_trace(
+    emotion: EmotionName,
+    color_name: str,
+    h: float,
+    s: float,
+    v: float,
+    audio: dict[str, Any],
+) -> list[str]:
+    return [
+        f"L'emozione finale '{emotion}' viene mappata sul colore '{color_name}' con HSV ({h:.0f}, {s:.0f}, {v:.0f}).",
+        f"La tonalità H={h:.0f} controlla l'altezza: pitch {audio['pitch_hz']:.1f} Hz.",
+        f"La saturazione S={s:.0f} determina il timbro: forma d'onda {audio['waveform']} e cutoff {audio['filter_cutoff_hz']:.1f} Hz.",
+        f"Il valore V={v:.0f} regola energia e spazio: ampiezza {audio['amplitude']:.2f}, attacco {audio['attack_time_ms']:.1f} ms, riverbero {audio['reverb_mix']:.2f}.",
+    ]
+
+
+def build_process_response(text: str, inference: dict[str, Any]) -> ProcessResponse:
+    emotion = inference["emotion"]
+    raw_emotion = inference["raw_emotion"]
+    confidence = inference["confidence"]
+    threshold_applied = inference["threshold_applied"]
+    top_classes = inference["top_classes"]
+    influential_terms = inference["influential_terms"]
+
     data = goethe_data_for_emotion(emotion)
     h, s, v = data["hsv"]
     audio = hsv_to_audio_target(h, s, v)
     return ProcessResponse(
         input_text=text,
         semantic_analysis=SemanticAnalysis(
-            emotion=emotion, confidence=round(float(confidence), 2)
+            emotion=emotion,
+            confidence=round(float(confidence), 2),
+            raw_emotion=raw_emotion,
+            threshold_applied=threshold_applied,
+        ),
+        explainability=ExplainabilityState(
+            method="gradient-based token saliency aggregated by word spans",
+            decision_summary=build_decision_summary(
+                emotion=emotion,
+                raw_emotion=raw_emotion,
+                confidence=confidence,
+                threshold_applied=threshold_applied,
+                influential_terms=influential_terms,
+            ),
+            top_classes=top_classes,
+            influential_terms=influential_terms,
+            rule_trace=build_rule_trace(
+                emotion=emotion,
+                color_name=data["name"],
+                h=h,
+                s=s,
+                v=v,
+                audio=audio,
+            ),
         ),
         visual_state=VisualState(
             color_name=data["name"],
@@ -344,7 +637,7 @@ async def process_text(request: ProcessRequest) -> ProcessResponse:
         raise HTTPException(status_code=422, detail='Il campo "text" non può essere vuoto.')
 
     try:
-        emotion, confidence = run_emotion_inference(text, _classifier)
+        inference = run_emotion_inference(text, _classifier)
     except Exception as exc:
         logger.exception("Errore inferenza: %s", exc)
         raise HTTPException(
@@ -352,11 +645,11 @@ async def process_text(request: ProcessRequest) -> ProcessResponse:
             detail="Errore durante la classificazione emotiva.",
         ) from exc
 
-    payload = build_process_response(text, emotion, confidence)
+    payload = build_process_response(text, inference)
     logger.info(
         "process: emotion=%s conf=%.2f waveform=%s pitch=%.1fHz reverb=%.2f len=%d",
-        emotion,
-        confidence,
+        payload.semantic_analysis.emotion,
+        payload.semantic_analysis.confidence,
         payload.audio_target_state.waveform,
         payload.audio_target_state.pitch_hz,
         payload.audio_target_state.reverb_mix,

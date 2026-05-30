@@ -421,6 +421,75 @@
             margin: 0 auto;
         }
 
+        .insight-box {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
+        }
+
+        .insight-title {
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .insight-text {
+            font-size: 0.92rem;
+            line-height: 1.8;
+            color: var(--text-primary);
+        }
+
+        .pill-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        .insight-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(44, 42, 38, 0.05);
+            border: 1px solid rgba(44, 42, 38, 0.08);
+            font-size: 0.8rem;
+            color: var(--text-primary);
+        }
+
+        .trace-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 18px;
+        }
+
+        .trace-list li {
+            font-size: 0.88rem;
+            line-height: 1.7;
+            color: var(--text-muted);
+            padding-left: 18px;
+            position: relative;
+        }
+
+        .trace-list li::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 11px;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--accent);
+        }
+
         /* Controls */
         .replay-btn {
             display: flex;
@@ -525,6 +594,17 @@
             <div class="quote-box">
                 <p class="quote-text" id="quote-text">Scegli le parole che descrivono il tuo stato interiore.</p>
                 <p class="artistic-description" id="artistic-text">L'analisi semantica trasformerà il testo in colore e suono secondo la Teoria dei Colori di Goethe.</p>
+            </div>
+
+            <div class="insight-box">
+                <p class="insight-title">Explainable AI</p>
+                <p class="insight-text" id="decision-summary">
+                    Qui comparirà una spiegazione locale della classificazione e del mapping verso colore e suono.
+                </p>
+
+                <div class="pill-row" id="top-classes"></div>
+                <div class="pill-row" id="influential-terms"></div>
+                <ul class="trace-list" id="rule-trace"></ul>
             </div>
 
             <button id="replay-btn" class="replay-btn" onclick="replaySound()">
@@ -697,6 +777,48 @@
             document.getElementById("color-swatch").style.backgroundColor = hex;
         }
 
+        function emotionLabel(emotion) {
+            const labels = {
+                joy: "Gioia",
+                sadness: "Tristezza",
+                anger: "Rabbia",
+                fear: "Paura",
+                neutral: "Neutrale"
+            };
+            return labels[emotion] || emotion;
+        }
+
+        function renderPills(containerId, items, formatter, emptyText) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = "";
+
+            if (!items || items.length === 0) {
+                const pill = document.createElement("div");
+                pill.className = "insight-pill";
+                pill.textContent = emptyText;
+                container.appendChild(pill);
+                return;
+            }
+
+            items.forEach(item => {
+                const pill = document.createElement("div");
+                pill.className = "insight-pill";
+                pill.textContent = formatter(item);
+                container.appendChild(pill);
+            });
+        }
+
+        function renderRuleTrace(trace) {
+            const list = document.getElementById("rule-trace");
+            list.innerHTML = "";
+
+            (trace || []).forEach(step => {
+                const li = document.createElement("li");
+                li.textContent = step;
+                list.appendChild(li);
+            });
+        }
+
         // ------------------------------------------------------------------
         // LIVE PROCESSING (DEBOUNCED)
         // ------------------------------------------------------------------
@@ -747,6 +869,21 @@
             
             document.getElementById("quote-text").textContent = data.visual_state.goethe_quote;
             document.getElementById("artistic-text").textContent = data.visual_state.artistic_description;
+            document.getElementById("decision-summary").textContent = data.explainability.decision_summary;
+
+            renderPills(
+                "top-classes",
+                data.explainability.top_classes,
+                item => `${emotionLabel(item.emotion)} ${(item.score * 100).toFixed(0)}%`,
+                "Nessuna classe disponibile"
+            );
+            renderPills(
+                "influential-terms",
+                data.explainability.influential_terms,
+                item => `"${item.term}" - salienza ${(item.importance * 100).toFixed(0)}%`,
+                "Nessuna parola saliente"
+            );
+            renderRuleTrace(data.explainability.rule_trace);
 
             document.getElementById("result-area").classList.add("visible");
 
