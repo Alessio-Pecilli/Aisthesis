@@ -5,840 +5,657 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aisthesis — Sonificazione Semantica</title>
-    <meta name="description"
-        content="Trasforma le tue emozioni in colori e suoni attraverso la Teoria dei Colori di Goethe." />
-
     <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
-    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-
-    <!-- Google Font: Inter & Playfair Display -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;1,400&display=swap"
-        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
 
     <style>
-        /* ============================================================
-       RESET & VARIABILI — GOETHE CLASSIC THEME
-    ============================================================ */
-        *,
-        *::before,
-        *::after {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
         :root {
-            --bg: #fdfbf7;
-            --surface: rgba(44, 42, 38, 0.03);
-            --border: rgba(44, 42, 38, 0.08);
-            --text-primary: #2c2a26;
-            --text-muted: #7a766f;
+            --bg: #f8f5ef;
+            --border: rgba(44, 42, 38, 0.1);
+            --text: #2c2a26;
+            --muted: #7a766f;
             --accent: #c9a96e;
-            --blob-1: #e2d1a8;
-            --blob-2: #d6e0e2;
-            --blob-3: #e8d6d6;
+            --blob-1: #e2d1a8; --blob-2: #d6e0e2; --blob-3: #e8d6d6;
             --radius: 12px;
-            --transition-color: 2.5s ease;
+            --pad-x: clamp(36px, 5vw, 80px);
         }
 
-        html,
-        body {
-            min-height: 100%;
-            background-color: var(--bg);
-            color: var(--text-primary);
-            font-family: 'Inter', sans-serif;
+        html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; }
+
+        .blob-container { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+        .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.34; transition: background-color 2s ease; }
+        .blob-1 { width: 50vw; height: 50vw; top: -10%; left: -5%; background: var(--blob-1); }
+        .blob-2 { width: 45vw; height: 45vw; bottom: -15%; right: 20%; background: var(--blob-2); }
+        .blob-3 { width: 35vw; height: 35vw; top: 40%; left: 30%; background: var(--blob-3); }
+
+        /* ── Shell: sinistra testo, destra insight ── */
+        .app-shell {
+            position: relative; z-index: 1;
+            display: grid;
+            grid-template-columns: minmax(520px, 1.25fr) minmax(380px, 1fr);
+            height: 100vh;
+            width: 100%;
+        }
+
+        /* Colonna destra — insight scrollabile */
+        .insight-column {
+            overflow-y: auto;
             overflow-x: hidden;
-            background-image: 
-                radial-gradient(circle at 2px 2px, rgba(44, 42, 38, 0.03) 1px, transparent 0);
-            background-size: 40px 40px;
+            padding: 32px clamp(24px, 3vw, 40px) 40px;
+            border-left: 1px solid var(--border);
+            scrollbar-width: thin;
+            scrollbar-color: rgba(44,42,38,0.2) transparent;
         }
+        .insight-column::-webkit-scrollbar { width: 6px; }
+        .insight-column::-webkit-scrollbar-thumb { background: rgba(44,42,38,0.15); border-radius: 3px; }
 
-        /* ============================================================
-       SFERE BLOB — effetto acquerello
-    ============================================================ */
-        .blob-container {
-            position: fixed;
-            inset: 0;
-            pointer-events: none;
-            z-index: 0;
-            overflow: hidden;
+        .insight-header {
+            margin-bottom: 24px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border);
         }
-
-        .blob {
-            position: absolute;
-            width: 600px;
-            height: 600px;
-            border-radius: 50%;
-            filter: blur(100px);
-            opacity: 0.35;
-            transition: background-color var(--transition-color);
-            will-change: transform;
-        }
-
-        .blob-1 {
-            background-color: var(--blob-1);
-            top: -10%;
-            left: -5%;
-            animation: float1 25s ease-in-out infinite;
-        }
-
-        .blob-2 {
-            background-color: var(--blob-2);
-            bottom: -15%;
-            right: -5%;
-            animation: float2 30s ease-in-out infinite;
-        }
-
-        .blob-3 {
-            background-color: var(--blob-3);
-            top: 45%;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 450px;
-            height: 450px;
-            animation: float3 20s ease-in-out infinite;
-        }
-
-        @keyframes float1 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            33% { transform: translate(80px, 50px) scale(1.1); }
-            66% { transform: translate(-40px, 90px) scale(0.9); }
-        }
-
-        @keyframes float2 {
-            0%, 100% { transform: translate(0, 0) scale(1); }
-            40% { transform: translate(-100px, -60px) scale(1.15); }
-            70% { transform: translate(50px, -40px) scale(0.85); }
-        }
-
-        @keyframes float3 {
-            0%, 100% { transform: translateX(-50%) scale(1); }
-            50% { transform: translateX(-50%) scale(1.2) translateY(-50px); }
-        }
-
-        /* ============================================================
-       LAYOUT PRINCIPALE
-    ============================================================ */
-        .page {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            min-height: 100vh;
-            padding: 80px 24px 100px;
-        }
-
-        /* ============================================================
-       HEADER / TITOLO
-    ============================================================ */
-        header {
-            text-align: center;
-            margin-bottom: 70px;
-        }
-
         .logo {
             font-family: 'Playfair Display', serif;
-            font-size: clamp(3.5rem, 10vw, 6rem);
-            font-weight: 400;
-            font-style: italic;
-            letter-spacing: -0.02em;
-            color: var(--text-primary);
-            line-height: 1;
+            font-size: 2.2rem; font-style: italic; line-height: 1;
         }
-
-        .logo span {
-            display: inline-block;
-            position: relative;
-        }
-
-        .logo span::after {
-            content: '';
-            position: absolute;
-            bottom: 8px;
-            left: 0;
-            width: 100%;
-            height: 1px;
-            background: var(--text-primary);
-            opacity: 0.2;
-        }
-
         .subtitle {
-            margin-top: 18px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            letter-spacing: 0.4em;
-            text-transform: uppercase;
-            color: var(--text-muted);
+            margin-top: 8px; font-size: 0.6rem; font-weight: 600;
+            letter-spacing: 0.3em; text-transform: uppercase; color: var(--muted);
         }
 
-        /* ============================================================
-       CARD CENTRALE
-    ============================================================ */
-        .card {
-            width: 100%;
-            max-width: 720px;
-            background: rgba(255, 255, 255, 0.4);
+        .placeholder-state {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 50vh; text-align: center; color: var(--muted); gap: 12px;
+        }
+        .placeholder-state p { font-size: 0.9rem; line-height: 1.7; max-width: 320px; }
+
+        #insight-content { display: none; flex-direction: column; gap: 18px; }
+        #insight-content.visible { display: flex; }
+
+        .panel {
+            background: rgba(255,255,255,0.82);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 50px;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.03);
+            padding: 22px 24px;
+        }
+        .panel-title {
+            font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em;
+            text-transform: uppercase; color: var(--muted); margin-bottom: 14px;
+        }
+
+        /* Mix emotivo — hero */
+        .mix-hero { display: flex; align-items: flex-start; gap: 16px; }
+        .composite-swatch {
+            width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+            border: 2px solid rgba(255,255,255,0.9);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            transition: background-color 2s ease;
+        }
+        .mix-title {
+            font-family: 'Playfair Display', serif; font-size: 1.15rem; line-height: 1.35;
+        }
+        .mix-sub { font-size: 0.78rem; color: var(--muted); margin-top: 6px; line-height: 1.55; }
+
+        .palette-row {
+            display: flex; height: 56px; border-radius: 8px; overflow: hidden;
+            border: 1px solid rgba(0,0,0,0.06); margin-top: 14px;
+        }
+        .palette-segment {
+            display: flex; flex-direction: column; justify-content: flex-end;
+            padding: 6px 8px; min-width: 40px;
+            transition: flex 0.7s ease, background-color 2s ease;
+        }
+        .palette-segment span { font-size: 0.52rem; font-weight: 700; text-transform: uppercase; color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.4); }
+        .palette-segment small { font-size: 0.5rem; color: rgba(255,255,255,0.85); }
+
+        /* Barre emozioni nel mix */
+        .emotion-bars { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+        .emotion-bar-row { display: flex; align-items: center; gap: 8px; }
+        .emotion-bar-label { width: 78px; font-size: 0.68rem; font-weight: 600; }
+        .emotion-bar-track { flex: 1; height: 8px; background: rgba(44,42,38,0.07); border-radius: 4px; overflow: hidden; }
+        .emotion-bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s ease; }
+        .emotion-bar-pct { width: 36px; font-size: 0.65rem; font-weight: 600; text-align: right; color: var(--muted); }
+
+        .va-bars { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+        .va-row { display: flex; align-items: center; gap: 8px; }
+        .va-label { width: 64px; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; color: var(--muted); }
+        .va-track { flex: 1; height: 5px; background: rgba(44,42,38,0.08); border-radius: 3px; }
+        .va-fill { height: 100%; border-radius: 3px; transition: width 0.8s ease; }
+        .va-val { width: 40px; font-size: 0.65rem; font-weight: 600; text-align: right; }
+
+        .metric-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .metric-chip {
+            flex: 1; min-width: 90px; padding: 10px 12px;
+            background: rgba(44,42,38,0.04); border-radius: 8px;
+        }
+        .metric-chip label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+        .metric-chip span { display: block; font-family: 'Playfair Display', serif; font-size: 1rem; margin-top: 3px; }
+
+        #oscilloscope { width: 100%; height: 40px; margin-top: 12px; opacity: 0.1; border-radius: 6px; }
+
+        .quote-text { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.1rem; line-height: 1.5; margin-bottom: 10px; }
+        .artistic-text { font-size: 0.82rem; line-height: 1.7; color: var(--muted); }
+        .insight-text { font-size: 0.86rem; line-height: 1.75; }
+
+        .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+        .insight-pill {
+            padding: 6px 12px; border-radius: 999px; font-size: 0.72rem;
+            background: rgba(44,42,38,0.05); border: 1px solid rgba(44,42,38,0.08);
+        }
+        .pill-favored { background: rgba(90,158,111,0.12); border-color: rgba(90,158,111,0.25); }
+        .pill-challenger { background: rgba(180,100,90,0.1); border-color: rgba(180,100,90,0.2); }
+        .pill-mix { background: rgba(201,169,110,0.15); border-color: rgba(201,169,110,0.3); font-weight: 600; }
+
+        .trace-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+        .trace-list li { font-size: 0.8rem; line-height: 1.6; color: var(--muted); padding-left: 14px; position: relative; }
+        .trace-list li::before { content: ''; position: absolute; left: 0; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+
+        .contrast-box { margin-top: 12px; padding: 14px; background: rgba(201,169,110,0.08); border-radius: 8px; border: 1px solid rgba(201,169,110,0.2); }
+        .contrast-summary { font-size: 0.82rem; line-height: 1.65; }
+
+        .lexicon-alert {
+            margin-top: 12px; padding: 14px 16px; border-radius: 8px;
+            background: rgba(180, 100, 90, 0.1); border: 1px solid rgba(180, 100, 90, 0.35);
+            font-size: 0.82rem; line-height: 1.65;
+        }
+        .lexicon-alert strong { display: block; font-size: 0.62rem; letter-spacing: 0.15em;
+            text-transform: uppercase; margin-bottom: 6px; color: #9a4a42; }
+        .lexicon-ok {
+            background: rgba(90, 158, 111, 0.08); border-color: rgba(90, 158, 111, 0.25);
+        }
+        .lexicon-ok strong { color: #3d7a52; }
+
+        .replay-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 12px; width: 100%; background: var(--text); color: #fff;
+            font-size: 0.68rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+            border: none; border-radius: var(--radius); cursor: pointer;
+        }
+        .replay-btn:hover { background: #000; }
+
+        /* Colonna sinistra — input testo */
+        .input-column {
+            display: flex; flex-direction: column;
+            padding: 36px var(--pad-x) 28px;
+            background: rgba(255,255,255,0.4);
             position: relative;
-            z-index: 2;
+            border-right: 1px solid var(--border);
+            min-width: 0;
         }
-
         .input-label {
-            display: block;
-            font-size: 0.7rem;
-            font-weight: 600;
-            letter-spacing: 0.25em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-bottom: 16px;
+            font-size: 0.6rem; font-weight: 700; letter-spacing: 0.2em;
+            text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
         }
-
         #emotion-input {
-            width: 100%;
-            min-height: 160px;
-            resize: none;
-            background: rgba(255, 255, 255, 0.6);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 24px;
-            color: var(--text-primary);
+            flex: 1; width: 100%; min-height: 240px; resize: none;
+            background: rgba(255,255,255,0.78); border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: clamp(24px, 3vh, 36px) clamp(20px, 2.5vw, 32px);
             font-family: 'Playfair Display', serif;
-            font-size: 1.25rem;
-            font-style: italic;
-            line-height: 1.6;
-            outline: none;
-            transition: all 0.4s ease;
-            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.01);
+            font-size: clamp(1.15rem, 1.6vw, 1.45rem); font-style: italic;
+            line-height: 1.75; outline: none;
         }
+        #emotion-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201,169,110,0.12); }
 
-        #emotion-input::placeholder {
-            color: #b0ada6;
-            font-style: italic;
-        }
-
-        #emotion-input:focus {
-            background: white;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 4px rgba(201, 169, 110, 0.1);
-        }
-
-        /* Live Indicator */
-        .live-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 16px;
-            font-size: 0.65rem;
-            font-weight: 600;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-
-        .pulse-dot {
-            width: 6px;
-            height: 6px;
-            background: #4caf50;
-            border-radius: 50%;
-            opacity: 0.4;
-        }
-
-        .is-processing .pulse-dot {
-            animation: pulse-green 1s infinite ease-in-out;
-            opacity: 1;
-        }
-
-        @keyframes pulse-green {
-            0%, 100% { transform: scale(1); opacity: 0.5; }
-            50% { transform: scale(1.5); opacity: 1; }
-        }
-
-        .btn-row {
-            display: flex;
-            gap: 16px;
-            margin-top: 30px;
-        }
+        .input-footer { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .status-row { display: flex; align-items: center; gap: 8px; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #5a9e6f; opacity: 0.5; }
+        .status-row.is-waiting .status-dot { background: var(--accent); animation: blink 1.2s infinite; }
+        .status-row.is-thinking .status-dot { background: #5a7a9e; animation: pulse 0.8s infinite; }
+        @keyframes blink { 50% { opacity: 1; transform: scale(1.3); } }
+        @keyframes pulse { 50% { opacity: 1; box-shadow: 0 0 0 4px rgba(90,122,158,0.2); } }
 
         .btn-secondary {
-            padding: 12px 24px;
-            background: transparent;
-            color: var(--text-muted);
-            font-family: 'Inter', sans-serif;
-            font-size: 0.75rem;
-            font-weight: 500;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
+            padding: 10px 16px; background: transparent; border: 1px solid var(--border);
+            border-radius: 8px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.08em;
+            text-transform: uppercase; color: var(--muted); cursor: pointer;
+        }
+        .btn-secondary:hover { color: var(--text); border-color: var(--text); }
+
+        .version-tag { font-size: 0.55rem; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); opacity: 0.5; margin-top: auto; padding-top: 16px; }
+
+        /* ── Overlay caricamento (colonna sinistra) ── */
+        .loading-overlay {
+            position: absolute; inset: 0; z-index: 20;
+            background: rgba(248,245,239,0.92);
+            backdrop-filter: blur(8px);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 40px; text-align: center;
+        }
+        .loading-overlay.active { display: flex; }
+
+        .thinking-orb {
+            width: 72px; height: 72px; border-radius: 50%;
+            background: conic-gradient(from 0deg, var(--accent), #5a9e6f, #5a7a9e, var(--accent));
+            animation: spin 2.5s linear infinite;
+            position: relative; margin-bottom: 28px;
+        }
+        .thinking-orb::after {
+            content: ''; position: absolute; inset: 6px; border-radius: 50%;
+            background: var(--bg);
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-title {
+            font-family: 'Playfair Display', serif; font-style: italic;
+            font-size: 1.4rem; margin-bottom: 8px;
+        }
+        .loading-stage {
+            font-size: 0.75rem; color: var(--muted); min-height: 1.4em;
+            transition: opacity 0.3s;
+        }
+        .loading-timer { font-size: 0.65rem; color: var(--muted); margin-top: 6px; opacity: 0.7; }
+
+        .progress-track {
+            width: min(280px, 80%); height: 4px; background: rgba(44,42,38,0.1);
+            border-radius: 2px; margin-top: 24px; overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), #5a9e6f);
+            border-radius: 2px; transition: width 0.4s ease;
         }
 
-        .btn-secondary:hover {
-            color: var(--text-primary);
-            border-color: var(--text-primary);
-            background: rgba(0, 0, 0, 0.02);
+        .loading-hint {
+            margin-top: 20px; font-size: 0.7rem; color: var(--muted); line-height: 1.6; max-width: 260px;
         }
 
-        /* ============================================================
-       AREA RISULTATO (Elegance & Classical)
-    ============================================================ */
-        #result-area {
-            margin-top: 50px;
-            width: 100%;
-            max-width: 720px;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            opacity: 0;
-            transform: translateY(30px);
-            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-
-        #result-area.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* Dashboard Dati */
-        .elegant-data-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            background: white;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 24px 32px;
-            gap: 24px;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
-        }
-
-        .color-swatch {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            transition: background-color var(--transition-color);
-            position: relative;
-            z-index: 2;
-        }
-
-        .color-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .elegant-label {
-            font-size: 0.65rem;
-            font-weight: 700;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-        }
-
-        .elegant-val {
-            font-family: 'Playfair Display', serif;
-            font-size: 1.4rem;
-            font-weight: 400;
-            color: var(--text-primary);
-        }
-
-        .metric-group {
-            display: flex;
-            gap: 40px;
-            align-items: center;
-        }
-
-        .metric {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            text-align: right;
-        }
-
-        #oscilloscope {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 50px;
-            opacity: 0.1;
-            z-index: 1;
-            pointer-events: none;
-        }
-
-        /* Citazione di Goethe — FOCUS CLASSIC */
-        .quote-box {
-            background: white;
-            border: 1px solid var(--border);
-            padding: 40px;
-            border-radius: var(--radius);
-            text-align: center;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
-            position: relative;
-        }
-
-        .quote-box::before {
-            content: '“';
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-family: 'Playfair Display', serif;
-            font-size: 4rem;
-            color: var(--accent);
-            opacity: 0.3;
-        }
-
-        .quote-text {
-            font-family: 'Playfair Display', serif;
-            font-style: italic;
-            font-size: 1.6rem;
-            line-height: 1.5;
-            color: var(--text-primary);
-            margin-bottom: 20px;
-        }
-
-        .artistic-description {
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-            line-height: 1.8;
-            font-weight: 400;
-            color: var(--text-muted);
-            max-width: 80%;
-            margin: 0 auto;
-        }
-
-        .insight-box {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 32px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.02);
-        }
-
-        .insight-title {
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-bottom: 16px;
-        }
-
-        .insight-text {
-            font-size: 0.92rem;
-            line-height: 1.8;
-            color: var(--text-primary);
-        }
-
-        .pill-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            margin-top: 18px;
-        }
-
-        .insight-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 14px;
-            border-radius: 999px;
-            background: rgba(44, 42, 38, 0.05);
-            border: 1px solid rgba(44, 42, 38, 0.08);
-            font-size: 0.8rem;
-            color: var(--text-primary);
-        }
-
-        .trace-list {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            margin-top: 18px;
-        }
-
-        .trace-list li {
-            font-size: 0.88rem;
-            line-height: 1.7;
-            color: var(--text-muted);
-            padding-left: 18px;
-            position: relative;
-        }
-
-        .trace-list li::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 11px;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: var(--accent);
-        }
-
-        /* Controls */
-        .replay-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 16px;
-            background: var(--text-primary);
-            color: white;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.8rem;
-            font-weight: 600;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            border: none;
-            border-radius: var(--radius);
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-
-        .replay-btn:hover {
-            background: #000;
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        footer {
-            margin-top: 80px;
-            font-size: 0.65rem;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            opacity: 0.6;
-        }
-
-        @media (max-width: 620px) {
-            .card { padding: 30px 24px; }
-            .elegant-data-row { flex-direction: column; text-align: center; }
-            .metric-group { width: 100%; justify-content: center; }
-            .metric { text-align: center; }
-            .logo { font-size: 3.5rem; }
+        /* Mobile: stack verticale */
+        @media (max-width: 960px) {
+            html, body { overflow: auto; height: auto; }
+            .app-shell {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr;
+                height: auto; min-height: 100vh;
+            }
+            .input-column {
+                border-right: none; border-bottom: 1px solid var(--border);
+                min-height: 42vh; padding: 28px 24px;
+            }
+            .insight-column { border-left: none; max-height: 58vh; }
+            #emotion-input { min-height: 200px; flex: none; }
         }
     </style>
 </head>
 
 <body>
-
     <div class="blob-container" aria-hidden="true">
         <div class="blob blob-1" id="blob1"></div>
         <div class="blob blob-2" id="blob2"></div>
         <div class="blob blob-3" id="blob3"></div>
     </div>
 
-    <main class="page">
-        <header>
-            <h1 class="logo"><span>Aisthesis</span></h1>
-            <p class="subtitle">Goethe Classic · Live Semantic Sonification</p>
-        </header>
-
-        <section class="card">
-            <label class="input-label" for="emotion-input">L'animo esprime...</label>
-            <textarea id="emotion-input" placeholder="Scrivi la tua emozione..." autofocus></textarea>
-            
-            <div class="live-status" id="live-indicator">
-                <div class="pulse-dot"></div>
-                <span id="status-text">Pronto all'ascolto</span>
+    <div class="app-shell">
+        <!-- SINISTRA: input testo -->
+        <section class="input-column">
+            <div class="insight-header" style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+                <h1 class="logo">Aisthesis</h1>
+                <p class="subtitle">Scrivi a sinistra · risultati a destra</p>
             </div>
-
-            <div class="btn-row">
-                <button class="btn-secondary" onclick="insertRandomEmotion()">Seme Casuale</button>
+            <label class="input-label" for="emotion-input">L'animo esprime…</label>
+            <textarea id="emotion-input" placeholder="Scrivi ciò che senti…" autofocus></textarea>
+            <div class="input-footer">
+                <div class="status-row" id="status-row">
+                    <div class="status-dot"></div>
+                    <span id="status-text">Pronto — inizia a scrivere</span>
+                </div>
+                <button class="btn-secondary" onclick="insertRandomEmotion()">Seme casuale</button>
+                <span class="version-tag">v4.2 · lessico ibrido</span>
             </div>
         </section>
 
-        <section id="result-area">
-            <!-- Elegant Data Dashboard -->
-            <div class="elegant-data-row" id="data-container">
-                <div class="color-chip-group" style="display: flex; align-items: center; gap: 20px;">
-                    <div class="color-swatch" id="color-swatch"></div>
-                    <div class="color-info">
-                        <span class="elegant-label">Tonalità</span>
-                        <span class="elegant-val" id="data-color-name">—</span>
+        <!-- DESTRA: insight scrollabile -->
+        <aside class="insight-column" id="insight-column">
+            <div class="loading-overlay" id="loading-overlay" aria-live="polite" aria-busy="false">
+                <div class="thinking-orb" aria-hidden="true"></div>
+                <p class="loading-title">L'animo pensa…</p>
+                <p class="loading-stage" id="loading-stage">Preparazione</p>
+                <p class="loading-timer" id="loading-timer">0.0s</p>
+                <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+                <p class="loading-hint">L'analisi richiede qualche secondo: classificazione emotiva, fusione cromatica e sintesi sonora.</p>
+            </div>
+
+            <div class="insight-header">
+                <p class="subtitle">Mix top-k · Goethe · Circumplex · XAI</p>
+            </div>
+
+            <div class="placeholder-state" id="placeholder">
+                <p>I risultati compariranno qui: palette, mix emotivo, spiegazioni e suono.</p>
+            </div>
+
+            <div id="insight-content">
+                <div class="panel">
+                    <p class="panel-title">Mix emotivo (top-k) — non una sola emozione</p>
+                    <div class="mix-hero">
+                        <div class="composite-swatch" id="color-swatch"></div>
+                        <div>
+                            <div class="mix-title" id="data-color-name">—</div>
+                            <div class="mix-sub" id="affective-desc">—</div>
+                        </div>
                     </div>
+                    <div class="palette-row" id="palette-row"></div>
+                    <div class="emotion-bars" id="emotion-bars"></div>
+                    <div class="va-bars" id="va-bars"></div>
+                    <div class="metric-row">
+                        <div class="metric-chip"><label>Registro</label><span id="data-freq">—</span></div>
+                        <div class="metric-chip"><label>Scala</label><span id="data-scale">—</span></div>
+                        <div class="metric-chip"><label>Top-1 raw</label><span id="data-top1">—</span></div>
+                    </div>
+                    <canvas id="oscilloscope"></canvas>
                 </div>
 
-                <div class="metric-group">
-                    <div class="metric">
-                        <span class="elegant-label">Tonalità (Hz)</span>
-                        <span class="elegant-val" id="data-freq">—</span>
-                        <span style="font-size: 0.55rem; color: var(--text-muted); margin-top: 2px;">Altezza della nota</span>
-                    </div>
-                    <div class="metric">
-                        <span class="elegant-label">Sicurezza (%)</span>
-                        <span class="elegant-val" id="data-conf">—</span>
-                        <span style="font-size: 0.55rem; color: var(--text-muted); margin-top: 2px;">Analisi AI</span>
-                    </div>
+                <div class="panel">
+                    <p class="panel-title">Goethe</p>
+                    <p class="quote-text" id="quote-text">—</p>
+                    <p class="artistic-text" id="artistic-text">—</p>
                 </div>
 
-                <canvas id="oscilloscope"></canvas>
+                <div class="panel">
+                    <p class="panel-title">Explainable AI</p>
+                    <div id="lexicon-alert" style="display:none;"></div>
+                    <p class="insight-text" id="decision-summary">—</p>
+                    <p class="panel-title" style="margin-top:14px;margin-bottom:8px;">Parole salienti (IG)</p>
+                    <div class="pill-row" id="influential-terms"></div>
+                    <div class="contrast-box" id="contrast-box" style="display:none;">
+                        <p class="panel-title" style="margin-bottom:6px;">Contrasto nel mix</p>
+                        <p class="contrast-summary" id="contrast-summary"></p>
+                        <div class="pill-row" id="contrast-pills-favored"></div>
+                        <div class="pill-row" id="contrast-pills-challenger"></div>
+                    </div>
+                    <ul class="trace-list" id="rule-trace"></ul>
+                </div>
+
+                <button class="replay-btn" onclick="replaySound()">▶ Riascolta paesaggio sonoro</button>
             </div>
-
-            <!-- Citazione di Goethe -->
-            <div class="quote-box">
-                <p class="quote-text" id="quote-text">Scegli le parole che descrivono il tuo stato interiore.</p>
-                <p class="artistic-description" id="artistic-text">L'analisi semantica trasformerà il testo in colore e suono secondo la Teoria dei Colori di Goethe.</p>
-            </div>
-
-            <div class="insight-box">
-                <p class="insight-title">Explainable AI</p>
-                <p class="insight-text" id="decision-summary">
-                    Qui comparirà una spiegazione locale della classificazione e del mapping verso colore e suono.
-                </p>
-
-                <div class="pill-row" id="top-classes"></div>
-                <div class="pill-row" id="influential-terms"></div>
-                <ul class="trace-list" id="rule-trace"></ul>
-            </div>
-
-            <button id="replay-btn" class="replay-btn" onclick="replaySound()">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                    <polygon points="5 3 19 12 5 21 5 3" fill="currentColor"></polygon>
-                </svg>
-                Riascolta l'Emozione
-            </button>
-        </section>
-
-        <footer>
-            <p>Aisthesis v3.2 · Classic Edition</p>
-        </footer>
-    </main>
+        </aside>
+    </div>
 
     <script>
         "use strict";
 
-        // ------------------------------------------------------------------
-        // FRASI CASUALI
-        // ------------------------------------------------------------------
         const RANDOM_EMOTIONS = [
             "Un brivido dorato nell'alba, come il silenzio della collina.",
             "Una malinconia profonda, un mare blu che inghiotte ogni luce.",
             "Una rabbia fiammeggiante, il ruggito del fuoco che divora la notte.",
             "Un riposo sereno tra i prati verdi, dove il tempo si ferma.",
-            "Un'ansia viola che stringe il petto, un'ombra inquieta nel buio."
+            "Un'ansia viola che stringe il petto, un'ombra inquieta nel buio.",
+            "Gioia e paura mescolate: il cuore batte forte ma le gambe tremano.",
+            "Rabbia fredda, tristezza antica — un blu-vermiglio che non perdona."
         ];
 
-        function insertRandomEmotion() {
-            const textarea = document.getElementById("emotion-input");
-            const idx = Math.floor(Math.random() * RANDOM_EMOTIONS.length);
-            textarea.value = RANDOM_EMOTIONS[idx];
-            textarea.dispatchEvent(new Event('input'));
-        }
+        const EMOTION_IT = { joy: "Gioia", sadness: "Tristezza", anger: "Rabbia", fear: "Paura", neutral: "Equilibrio" };
+        const EMOTION_COLORS = { joy: "#c9a96e", sadness: "#5a7a9e", anger: "#b4645a", fear: "#7a5a9e", neutral: "#5a9e6f" };
+        const SCALE_IT = {
+            pentatonic_major: "Pent. magg.", pentatonic_minor: "Pent. min.",
+            dorian: "Dorica", mixolydian: "Misolidia"
+        };
+
+        const LOADING_STAGES = [
+            { label: "Lettura del testo…", progress: 12 },
+            { label: "Classificazione FEEL-IT (top-k)…", progress: 30 },
+            { label: "Fusione cromatica Goethe…", progress: 50 },
+            { label: "Calcolo spazio affettivo…", progress: 65 },
+            { label: "Integrated Gradients…", progress: 78 },
+            { label: "Sintesi del paesaggio sonoro…", progress: 92 },
+        ];
 
         const API_BASE = window.location.port === "8000" ? "" : "http://127.0.0.1:8000";
 
-        // ------------------------------------------------------------------
-        // WEB AUDIO API — MOTORE AVANZATO
-        // ------------------------------------------------------------------
-        let audioCtx = null, analyser = null, activeNodes = [], lastAudioTarget = null;
+        let audioCtx = null, analyser = null, masterGain = null, activeNodes = [], lastSonic = null;
+        let debounceTimer = null, loadingInterval = null, loadingStart = 0, requestId = 0;
 
+        function insertRandomEmotion() {
+            const ta = document.getElementById("emotion-input");
+            ta.value = RANDOM_EMOTIONS[Math.floor(Math.random() * RANDOM_EMOTIONS.length)];
+            ta.dispatchEvent(new Event("input"));
+        }
+
+        // ── Loading UI ──
+        function startLoading() {
+            const overlay = document.getElementById("loading-overlay");
+            overlay.classList.add("active");
+            overlay.setAttribute("aria-busy", "true");
+            loadingStart = performance.now();
+            let stageIdx = 0;
+
+            document.getElementById("loading-stage").textContent = LOADING_STAGES[0].label;
+            document.getElementById("progress-fill").style.width = "5%";
+
+            clearInterval(loadingInterval);
+            loadingInterval = setInterval(() => {
+                const elapsed = ((performance.now() - loadingStart) / 1000).toFixed(1);
+                document.getElementById("loading-timer").textContent = elapsed + "s";
+
+                const target = LOADING_STAGES[stageIdx];
+                const fill = document.getElementById("progress-fill");
+                const current = parseFloat(fill.style.width) || 5;
+                const next = Math.min(target.progress, current + 1.5);
+                fill.style.width = next + "%";
+
+                if (next >= target.progress - 2 && stageIdx < LOADING_STAGES.length - 1) {
+                    stageIdx++;
+                    document.getElementById("loading-stage").textContent = LOADING_STAGES[stageIdx].label;
+                }
+            }, 120);
+        }
+
+        function stopLoading() {
+            clearInterval(loadingInterval);
+            const overlay = document.getElementById("loading-overlay");
+            document.getElementById("progress-fill").style.width = "100%";
+            document.getElementById("loading-stage").textContent = "Completato";
+            setTimeout(() => {
+                overlay.classList.remove("active");
+                overlay.setAttribute("aria-busy", "false");
+                document.getElementById("progress-fill").style.width = "0%";
+            }, 350);
+        }
+
+        function setStatus(mode, text) {
+            const row = document.getElementById("status-row");
+            row.className = "status-row" + (mode ? " " + mode : "");
+            document.getElementById("status-text").textContent = text;
+        }
+
+        // ── Audio ──
         function initAudio() {
-            if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioCtx.createAnalyser();
-                analyser.fftSize = 2048;
-                analyser.connect(audioCtx.destination);
-                drawOscilloscope();
+            if (audioCtx) return;
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 2048;
+            masterGain = audioCtx.createGain();
+            masterGain.gain.value = 0.85;
+            masterGain.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            drawOscilloscope();
+        }
+
+        function makeReverb() {
+            const len = audioCtx.sampleRate * 1.8;
+            const buf = audioCtx.createBuffer(2, len, audioCtx.sampleRate);
+            for (let ch = 0; ch < 2; ch++) {
+                const d = buf.getChannelData(ch);
+                for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.2);
+            }
+            const conv = audioCtx.createConvolver();
+            conv.buffer = buf;
+            return { conv, wet: audioCtx.createGain(), dry: audioCtx.createGain() };
+        }
+
+        function stopAll() {
+            activeNodes.forEach(n => {
+                try {
+                    n.gain.gain.cancelScheduledValues(audioCtx.currentTime);
+                    n.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+                    if (n.osc) n.osc.stop(audioCtx.currentTime + 0.25);
+                } catch (_) {}
+            });
+            activeNodes = [];
+        }
+
+        function playVoice(voice, profile, startTime, reverbWet) {
+            const osc = audioCtx.createOscillator();
+            osc.type = voice.waveform === "sawtooth" ? "triangle" : voice.waveform;
+            osc.frequency.setValueAtTime(voice.pitch_hz * Math.pow(2, (voice.detune_cents || 0) / 1200), startTime);
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = "lowpass";
+            filter.frequency.value = profile.filter_cutoff_hz;
+            const gain = audioCtx.createGain();
+            const atk = profile.attack_time_ms / 1000, rel = profile.release_time_ms / 1000;
+            gain.gain.setValueAtTime(0, startTime);
+            gain.gain.linearRampToValueAtTime(voice.gain, startTime + atk);
+            gain.gain.exponentialRampToValueAtTime(0.001, startTime + rel);
+            osc.connect(filter); filter.connect(gain);
+            const rev = makeReverb();
+            rev.dry.gain.value = 1 - reverbWet * 0.55;
+            rev.wet.gain.value = reverbWet * 0.45;
+            gain.connect(rev.dry); gain.connect(rev.conv);
+            rev.conv.connect(rev.wet);
+            rev.dry.connect(masterGain); rev.wet.connect(masterGain);
+            osc.start(startTime); osc.stop(startTime + rel + 0.05);
+            activeNodes.push({ osc, gain });
+        }
+
+        function playSonicProfile(profile) {
+            if (!profile?.voices?.length) return;
+            initAudio(); stopAll();
+            const now = audioCtx.currentTime + 0.04;
+            const beat = 60000 / profile.tempo_bpm / 1000;
+            profile.voices.forEach((v, i) => playVoice(v, profile, now + (v.delay_ms || 0) / 1000 + i * beat * 0.45, profile.reverb_mix));
+            if (profile.arpeggio_pattern?.length > 2) {
+                profile.arpeggio_pattern.forEach((_, i) => {
+                    const v = profile.voices[i % profile.voices.length];
+                    playVoice({ ...v, gain: v.gain * 0.35 }, profile, now + 1.2 + i * beat * 0.6, profile.reverb_mix * 0.7);
+                });
             }
         }
+        function replaySound() { if (lastSonic) playSonicProfile(lastSonic); }
 
         function drawOscilloscope() {
             const canvas = document.getElementById("oscilloscope");
             const ctx = canvas.getContext("2d");
-            canvas.width = canvas.offsetWidth;
-            canvas.height = canvas.offsetHeight;
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-
-            function draw() {
+            const buf = new Uint8Array(analyser.frequencyBinCount);
+            (function draw() {
                 requestAnimationFrame(draw);
-                analyser.getByteTimeDomainData(dataArray);
+                if (!canvas.offsetWidth) return;
+                canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+                analyser.getByteTimeDomainData(buf);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = '#2c2a26';
-                ctx.beginPath();
-                const sliceWidth = canvas.width / bufferLength;
-                let x = 0;
-                for (let i = 0; i < bufferLength; i++) {
-                    const v = dataArray[i] / 128.0;
-                    const y = v * canvas.height / 2;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
-                    x += sliceWidth;
+                ctx.strokeStyle = "#2c2a26"; ctx.lineWidth = 1.5; ctx.beginPath();
+                const sw = canvas.width / buf.length; let x = 0;
+                for (let i = 0; i < buf.length; i++) {
+                    const y = (buf[i] / 128) * canvas.height / 2;
+                    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); x += sw;
                 }
-                ctx.lineTo(canvas.width, canvas.height / 2);
                 ctx.stroke();
-            }
-            draw();
+            })();
         }
 
-        /**
-         * Sintetizza il suono usando i parametri psicoacustici completi.
-         */
-        function playTarget(target) {
-            if (!target) return;
-            initAudio();
-            
-            // Ferma suoni precedenti con dissolvenza rapida
-            activeNodes.forEach(n => { 
-                try { 
-                    n.gain.gain.cancelScheduledValues(audioCtx.currentTime);
-                    n.gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
-                    n.osc.stop(audioCtx.currentTime + 0.2); 
-                } catch(e){} 
-            });
-            activeNodes = [];
-
-            const now = audioCtx.currentTime;
-            const startTime = now + 0.05;
-
-            // 1. Oscillatore
-            const osc = audioCtx.createOscillator();
-            osc.type = target.waveform;
-            osc.frequency.setValueAtTime(target.pitch_hz, startTime);
-
-            // 2. Filtro Lowpass (Morbidezza del timbro)
-            const filter = audioCtx.createBiquadFilter();
-            filter.type = "lowpass";
-            filter.frequency.setValueAtTime(target.filter_cutoff_hz, startTime);
-            filter.Q.setValueAtTime(1, startTime);
-
-            // 3. Gain con Inviluppo (Attacco e Release/Reverb)
-            const gain = audioCtx.createGain();
-            gain.gain.setValueAtTime(0, startTime);
-            
-            const attackTime = target.attack_time_ms / 1000;
-            // Il riverbero del backend controlla la durata totale (release)
-            const sustainTime = 2.0; 
-            const releaseTime = sustainTime + (target.reverb_mix * 4.0); 
-
-            // Rampa di attacco
-            gain.gain.linearRampToValueAtTime(target.amplitude * 0.4, startTime + attackTime);
-            
-            // Sostegno e rilascio
-            gain.gain.setValueAtTime(target.amplitude * 0.4, startTime + sustainTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, startTime + releaseTime);
-
-            // Connessioni
-            osc.connect(filter);
-            filter.connect(gain);
-            gain.connect(analyser);
-
-            osc.start(startTime);
-            osc.stop(startTime + releaseTime + 0.1);
-
-            activeNodes.push({ osc, gain });
-        }
-
-        function replaySound() { if (lastAudioTarget) playTarget(lastAudioTarget); }
-
-        // ------------------------------------------------------------------
-        // THEME & UTILS
-        // ------------------------------------------------------------------
         function hsvToHex(h, s, v) {
             h /= 360; s /= 100; v /= 100;
-            let i = Math.floor(h * 6);
-            let f = h * 6 - i;
-            let p = v * (1 - s);
-            let q = v * (1 - f * s);
-            let t = v * (1 - (1 - f) * s);
+            const i = Math.floor(h * 6), f = h * 6 - i;
+            const p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
             let r, g, b;
             switch (i % 6) {
-                case 0: r = v, g = t, b = p; break;
-                case 1: r = q, g = v, b = p; break;
-                case 2: r = p, g = v, b = t; break;
-                case 3: r = p, g = q, b = v; break;
-                case 4: r = t, g = p, b = v; break;
-                case 5: r = v, g = p, b = q; break;
+                case 0: r = v; g = t; b = p; break;
+                case 1: r = q; g = v; b = p; break;
+                case 2: r = p; g = v; b = t; break;
+                case 3: r = p; g = q; b = v; break;
+                case 4: r = t; g = p; b = v; break;
+                case 5: r = v; g = p; b = q; break;
             }
-            const toHex = x => Math.round(x * 255).toString(16).padStart(2, '0');
-            return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+            const hx = x => Math.round(x * 255).toString(16).padStart(2, "0");
+            return `#${hx(r)}${hx(g)}${hx(b)}`;
         }
 
-        function updateColors(hex) {
-            const blobs = [document.getElementById("blob1"), document.getElementById("blob2"), document.getElementById("blob3")];
-            blobs[0].style.backgroundColor = hex;
-            document.getElementById("color-swatch").style.backgroundColor = hex;
+        function renderPalette(layers) {
+            const row = document.getElementById("palette-row");
+            row.innerHTML = "";
+            (layers || []).forEach(layer => {
+                const seg = document.createElement("div");
+                seg.className = "palette-segment";
+                seg.style.flex = Math.max(0.12, layer.weight);
+                seg.style.backgroundColor = hsvToHex(layer.hsv.h, layer.hsv.s, layer.hsv.v);
+                seg.innerHTML = `<span>${layer.color_name}</span><small>${(layer.weight * 100).toFixed(0)}%</small>`;
+                row.appendChild(seg);
+            });
         }
 
-        function emotionLabel(emotion) {
-            const labels = {
-                joy: "Gioia",
-                sadness: "Tristezza",
-                anger: "Rabbia",
-                fear: "Paura",
-                neutral: "Neutrale"
-            };
-            return labels[emotion] || emotion;
+        function renderEmotionBars(mix) {
+            const el = document.getElementById("emotion-bars");
+            el.innerHTML = "";
+            (mix || []).forEach(item => {
+                const row = document.createElement("div");
+                row.className = "emotion-bar-row";
+                const pct = (item.score * 100).toFixed(0);
+                const color = EMOTION_COLORS[item.emotion] || "#999";
+                row.innerHTML = `
+                    <span class="emotion-bar-label">${EMOTION_IT[item.emotion] || item.emotion}</span>
+                    <div class="emotion-bar-track"><div class="emotion-bar-fill" style="width:0%;background:${color}"></div></div>
+                    <span class="emotion-bar-pct">${pct}%</span>`;
+                el.appendChild(row);
+                requestAnimationFrame(() => {
+                    row.querySelector(".emotion-bar-fill").style.width = pct + "%";
+                });
+            });
         }
 
-        function renderPills(containerId, items, formatter, emptyText) {
-            const container = document.getElementById(containerId);
-            container.innerHTML = "";
+        function renderVaBars(affective) {
+            const vPct = ((affective.valence + 1) / 2) * 100, aPct = affective.arousal * 100;
+            document.getElementById("va-bars").innerHTML = `
+                <div class="va-row"><span class="va-label">Valence</span>
+                    <div class="va-track"><div class="va-fill" style="width:${vPct}%;background:${affective.valence >= 0 ? '#5a9e6f' : '#b4645a'}"></div></div>
+                    <span class="va-val">${affective.valence >= 0 ? '+' : ''}${affective.valence.toFixed(2)}</span></div>
+                <div class="va-row"><span class="va-label">Arousal</span>
+                    <div class="va-track"><div class="va-fill" style="width:${aPct}%;background:#c9a96e"></div></div>
+                    <span class="va-val">${affective.arousal.toFixed(2)}</span></div>`;
+        }
 
-            if (!items || items.length === 0) {
-                const pill = document.createElement("div");
-                pill.className = "insight-pill";
-                pill.textContent = emptyText;
-                container.appendChild(pill);
-                return;
+        function renderPills(id, items, fmt, empty, cls) {
+            const el = document.getElementById(id);
+            el.innerHTML = "";
+            if (!items?.length) {
+                const p = document.createElement("div"); p.className = "insight-pill"; p.textContent = empty;
+                el.appendChild(p); return;
             }
-
             items.forEach(item => {
-                const pill = document.createElement("div");
-                pill.className = "insight-pill";
-                pill.textContent = formatter(item);
-                container.appendChild(pill);
+                const p = document.createElement("div");
+                p.className = "insight-pill" + (cls ? " " + cls : "");
+                p.textContent = fmt(item);
+                el.appendChild(p);
             });
         }
 
         function renderRuleTrace(trace) {
             const list = document.getElementById("rule-trace");
             list.innerHTML = "";
-
             (trace || []).forEach(step => {
-                const li = document.createElement("li");
-                li.textContent = step;
-                list.appendChild(li);
+                const li = document.createElement("li"); li.textContent = step; list.appendChild(li);
             });
         }
 
-        // ------------------------------------------------------------------
-        // LIVE PROCESSING (DEBOUNCED)
-        // ------------------------------------------------------------------
-        let debounceTimer;
+        // ── Live processing ──
         const textarea = document.getElementById("emotion-input");
-
         textarea.addEventListener("input", () => {
             clearTimeout(debounceTimer);
-            document.getElementById("live-indicator").classList.add("is-processing");
-            document.getElementById("status-text").textContent = "L'animo riflette...";
-            debounceTimer = setTimeout(processLive, 800);
+            setStatus("is-waiting", "In attesa… (pausa digitazione)");
+            debounceTimer = setTimeout(processLive, 700);
         });
 
         async function processLive() {
             const text = textarea.value.trim();
             if (text.length < 3) {
-                document.getElementById("live-indicator").classList.remove("is-processing");
-                document.getElementById("status-text").textContent = "Pronto all'ascolto";
+                setStatus("", "Pronto — almeno 3 caratteri");
                 return;
             }
+
+            const myId = ++requestId;
+            setStatus("is-thinking", "L'animo pensa…");
+            startLoading();
 
             try {
                 const res = await fetch(`${API_BASE}/process`, {
@@ -846,53 +663,80 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text })
                 });
-                if (!res.ok) throw new Error();
-                const data = await res.json();
-                
-                updateUI(data);
+                if (myId !== requestId) return;
+                if (!res.ok) throw new Error(await res.text());
+                updateUI(await res.json());
+                setStatus("", "Sincronizzato · mix top-k pronto");
             } catch (e) {
                 console.error(e);
+                if (myId === requestId) setStatus("", "Errore — riprova");
             } finally {
-                document.getElementById("live-indicator").classList.remove("is-processing");
-                document.getElementById("status-text").textContent = "Sincronizzato";
+                if (myId === requestId) stopLoading();
             }
         }
 
         function updateUI(data) {
+            document.getElementById("placeholder").style.display = "none";
+            document.getElementById("insight-content").classList.add("visible");
+
             const hsv = data.visual_state.hsv;
             const hex = hsvToHex(hsv.h, hsv.s, hsv.v);
-            updateColors(hex);
+            document.getElementById("color-swatch").style.backgroundColor = hex;
+            ["blob1", "blob2", "blob3"].forEach((id, i) => {
+                const layer = data.visual_state.layers?.[i];
+                document.getElementById(id).style.backgroundColor = layer
+                    ? hsvToHex(layer.hsv.h, layer.hsv.s, layer.hsv.v) : hex;
+            });
+
+            renderPalette(data.visual_state.layers);
+            const mix = data.semantic_analysis.emotion_mix || data.semantic_analysis.blend_weights;
+            renderEmotionBars(mix);
 
             document.getElementById("data-color-name").textContent = data.visual_state.color_name;
-            document.getElementById("data-freq").textContent = data.audio_target_state.pitch_hz.toFixed(0) + " Hz";
-            document.getElementById("data-conf").textContent = (data.semantic_analysis.confidence * 100).toFixed(0) + "%";
-            
+            document.getElementById("affective-desc").textContent = data.semantic_analysis.affective_space.description;
+            renderVaBars(data.semantic_analysis.affective_space);
+
+            const sonic = data.sonic_profile;
+            document.getElementById("data-freq").textContent = sonic.root_pitch_hz.toFixed(0) + " Hz";
+            document.getElementById("data-scale").textContent = SCALE_IT[sonic.scale_name] || sonic.scale_name;
+            const raw = data.semantic_analysis.raw_top1_emotion || data.semantic_analysis.raw_emotion;
+            const conf = (data.semantic_analysis.confidence * 100).toFixed(0);
+            document.getElementById("data-top1").textContent = `${EMOTION_IT[raw] || raw} ${conf}%`;
+
             document.getElementById("quote-text").textContent = data.visual_state.goethe_quote;
             document.getElementById("artistic-text").textContent = data.visual_state.artistic_description;
             document.getElementById("decision-summary").textContent = data.explainability.decision_summary;
 
-            renderPills(
-                "top-classes",
-                data.explainability.top_classes,
-                item => `${emotionLabel(item.emotion)} ${(item.score * 100).toFixed(0)}%`,
-                "Nessuna classe disponibile"
-            );
-            renderPills(
-                "influential-terms",
-                data.explainability.influential_terms,
-                item => `"${item.term}" - salienza ${(item.importance * 100).toFixed(0)}%`,
-                "Nessuna parola saliente"
-            );
+            const lex = data.explainability.lexicon_alignment;
+            const alertEl = document.getElementById("lexicon-alert");
+            if (lex?.lexicon_active) {
+                alertEl.style.display = "block";
+                alertEl.className = "lexicon-alert" + (lex.contradiction ? "" : " lexicon-ok");
+                alertEl.innerHTML = lex.contradiction
+                    ? `<strong>⚠ Modello vs lessico</strong>${lex.note}`
+                    : `<strong>✓ Lessico concorde</strong>${lex.note}`;
+            } else {
+                alertEl.style.display = "none";
+            }
+
+            renderPills("influential-terms", data.explainability.influential_terms,
+                t => `"${t.term}" ${(t.importance * 100).toFixed(0)}%`, "Nessuna parola saliente");
+
+            const contrast = data.explainability.contrastive;
+            const cbox = document.getElementById("contrast-box");
+            if (contrast) {
+                cbox.style.display = "block";
+                document.getElementById("contrast-summary").textContent = contrast.summary;
+                renderPills("contrast-pills-favored", contrast.terms_for_favored,
+                    t => `${t.term} → ${EMOTION_IT[contrast.favored_emotion]}`, "—", "pill-favored");
+                renderPills("contrast-pills-challenger", contrast.terms_for_challenger,
+                    t => `${t.term} → ${EMOTION_IT[contrast.challenger_emotion]}`, "—", "pill-challenger");
+            } else cbox.style.display = "none";
+
             renderRuleTrace(data.explainability.rule_trace);
-
-            document.getElementById("result-area").classList.add("visible");
-
-            lastAudioTarget = data.audio_target_state;
-            
-            // Suona usando il nuovo motore a parametri completi
-            playTarget(lastAudioTarget);
+            lastSonic = sonic;
+            playSonicProfile(sonic);
         }
     </script>
 </body>
-
 </html>

@@ -1,14 +1,13 @@
 """
-Aisthesis — Backend FastAPI
-Pipeline: classificazione emozionale (Transformers, encoder-only) → mapping cromatico
-Goethe HSV O(1) → parametri sonori deterministici (psychoacoustic avanzato).
-
-Nessuna dipendenza da LLM generativi, agenti o RAG: solo `transformers` per FEEL-IT.
+Aisthesis — Backend FastAPI v4
+Pipeline: FEEL-IT (top-k) → spazio affettivo (valence/arousal) → blend cromatico Goethe
+→ profilo sonoro musicale → explainability (Integrated Gradients + contrastivo).
 """
 
 from __future__ import annotations
 
 import logging
+import math
 import re
 from contextlib import asynccontextmanager
 from typing import Any, Literal, Optional
@@ -26,60 +25,68 @@ from transformers import (
 )
 
 # ---------------------------------------------------------------------------
-# Costanti — soglia emozione e psychoacoustic
+# Costanti
 # ---------------------------------------------------------------------------
 
-CONFIDENCE_THRESHOLD = 0.35
-BASE_FREQ_HZ = 110.0  # Abbassato a 110Hz (A2) per dare più corpo ai bassi
-
-# Cutoff LPF: esponenziale S ∈ [0,100] → [150 Hz, 12000 Hz]
-FILTER_CUTOFF_BASE_HZ = 150.0
-FILTER_CUTOFF_EXP_BASE = 80.0
-
-# Attacco: V=100 → percussivo (5 ms), V=0 → ambient (3000 ms)
-ATTACK_FAST_MS = 5.0
-ATTACK_SLOW_MS = 3000.0
-
-# Riverbero/Release: V basso → cavernoso/lungo; V alto → asciutto/corto
-REVERB_WET_MAX = 0.9
-EXPLANATION_TOP_TERMS = 5
-EXPLANATION_MIN_DELTA = 0.01
+CONFIDENCE_THRESHOLD = 0.30
+TOP_K_BLEND = 4
+MIN_BLEND_WEIGHT = 0.05
+MODEL_BLEND_WEIGHT = 0.50
+LEXICON_BLEND_WEIGHT = 0.50
+EXPLANATION_TOP_TERMS = 6
+EXPLANATION_MIN_DELTA = 0.008
+IG_STEPS = 20
 
 EmotionName = Literal["joy", "sadness", "anger", "fear", "neutral"]
 WaveformName = Literal["sine", "triangle", "sawtooth"]
+ScaleName = Literal["pentatonic_major", "pentatonic_minor", "dorian", "mixolydian"]
 
-# Mappatura HSV (Hue 0–360, S e V 0–100)
-# S < 45: sine, S < 75: triangle, else: sawtooth
+# Russell circumplex — coordinate normalizzate [-1, 1]
+EMOTION_VA: dict[EmotionName, tuple[float, float]] = {
+    "joy": (0.82, 0.62),
+    "anger": (-0.72, 0.88),
+    "sadness": (-0.78, 0.22),
+    "fear": (-0.65, 0.78),
+    "neutral": (0.05, 0.30),
+}
+
+SCALE_INTERVALS: dict[ScaleName, list[int]] = {
+    "pentatonic_major": [0, 2, 4, 7, 9],
+    "pentatonic_minor": [0, 3, 5, 7, 10],
+    "dorian": [0, 2, 3, 5, 7, 9, 10],
+    "mixolydian": [0, 2, 4, 5, 7, 9, 10],
+}
+
 GOETHE_DATA: dict[str, dict[str, Any]] = {
     "joy": {
-        "hsv": (60.0, 40.0, 100.0), # Giallo: Sine, Attacco Rapido, Brillante
-        "name": "Giallo (Yellow)",
-        "quote": "Il colore più vicino alla luce... possiede un carattere sereno, lieto, dolcemente eccitante.",
+        "hsv": (52.0, 55.0, 95.0),
+        "name": "Giallo",
+        "quote": "Il colore più vicino alla luce possiede un carattere sereno, lieto, dolcemente eccitante.",
         "description": "L'occhio ne viene allietato, l'animo si rasserena; un calore immediato ci investe.",
     },
     "anger": {
-        "hsv": (0.0, 100.0, 100.0), # Vermiglio: Sawtooth, Attacco Percussivo, Aggressivo
-        "name": "Giallo-Rosso (Vermiglio)",
-        "quote": "Il culmine del lato attivo... spinge all'azione; è il colore del fuoco e della passione.",
-        "description": "Esercita un fascino incredibile che spinge all'azione; è l'energia vitale al suo apice.",
+        "hsv": (8.0, 92.0, 92.0),
+        "name": "Vermiglio",
+        "quote": "Il culmine del lato attivo spinge all'azione; è il colore del fuoco e della passione.",
+        "description": "Esercita un fascino incredibile che spinge all'azione; energia vitale al suo apice.",
     },
     "sadness": {
-        "hsv": (240.0, 30.0, 40.0), # Blu: Sine, Attacco Lento, Profondo/Scuro
-        "name": "Blu (Blue)",
-        "quote": "Il colore più vicino all'oscurità... crea una sensazione di vuoto e di distanza.",
-        "description": "Mentre il giallo porta luce, il blu sembra attirare lo sguardo verso l'infinito, lasciando un'impressione di solitudine.",
+        "hsv": (225.0, 42.0, 38.0),
+        "name": "Blu",
+        "quote": "Il colore più vicino all'oscurità crea una sensazione di vuoto e di distanza.",
+        "description": "Attira lo sguardo verso l'infinito, lasciando un'impressione di solitudine.",
     },
     "fear": {
-        "hsv": (280.0, 60.0, 30.0), # Violetto: Triangle, Attacco Lento, Inquieto
-        "name": "Rosso-Blu (Violetto)",
+        "hsv": (275.0, 55.0, 32.0),
+        "name": "Violetto",
         "quote": "Rispetto al blu puro, questo colore appare più inquieto ed oppressivo.",
-        "description": "Evoca una tristezza che tende all'oppressione; un colore che ha qualcosa di fastidioso.",
+        "description": "Evoca una tristezza che tende all'oppressione; qualcosa di fastidioso nell'aria.",
     },
     "neutral": {
-        "hsv": (120.0, 60.0, 80.0), # Verde: Triangle, Attacco Morbido, Equilibrato
-        "name": "Verde (Green)",
-        "quote": "Il prodotto dell'unione tra Giallo e Blu in perfetto equilibrio... un punto di sosta perfetto.",
-        "description": "L'occhio e l'animo trovano in questo colore un riposo reale. Non vuole né può andare oltre.",
+        "hsv": (128.0, 38.0, 72.0),
+        "name": "Verde",
+        "quote": "Il prodotto dell'unione tra Giallo e Blu in perfetto equilibrio.",
+        "description": "L'occhio e l'animo trovano in questo colore un riposo reale.",
     },
 }
 
@@ -95,40 +102,46 @@ LABEL_ALIASES: dict[str, EmotionName] = {
 }
 
 DISPLAY_STOPWORDS = {
-    "a",
-    "ad",
-    "al",
-    "alla",
-    "con",
-    "da",
-    "del",
-    "della",
-    "di",
-    "e",
-    "ha",
-    "ho",
-    "il",
-    "in",
-    "io",
-    "la",
-    "le",
-    "lo",
-    "ma",
-    "mi",
-    "ne",
-    "nel",
-    "non",
-    "o",
-    "per",
-    "se",
-    "si",
-    "sono",
-    "su",
-    "tra",
-    "tu",
-    "un",
-    "una",
+    "a", "ad", "al", "alla", "con", "da", "del", "della", "di", "e", "ha", "ho",
+    "il", "in", "io", "la", "le", "lo", "ma", "mi", "ne", "nel", "non", "o",
+    "per", "se", "si", "sono", "su", "tra", "tu", "un", "una",
 }
+
+EMOTION_IT: dict[EmotionName, str] = {
+    "joy": "Gioia",
+    "sadness": "Tristezza",
+    "anger": "Rabbia",
+    "fear": "Paura",
+    "neutral": "Equilibrio",
+}
+
+# Lessico affettivo italiano — corregge errori del modello su testi brevi/espliciti
+EMOTION_LEXICON: dict[EmotionName, tuple[str, ...]] = {
+    "anger": (
+        "arrabbiato", "arrabiato", "arrabbiata", "arrabiata", "rabbia", "rabbi",
+        "furioso", "furiosa", "furiosi", "ira", "collera", "uffa", "incazzato",
+        "incazzata", "odio", "furia", "rabbioso", "rabbiosa", "infuriato",
+        "infuriata", "stizzito", "stizzita", "indignato", "indignata",
+    ),
+    "sadness": (
+        "triste", "tristezza", "tristi", "piango", "piangere", "piange", "pianto",
+        "lacrima", "lacrime", "malinconia", "malinconico", "dolore", "sofferenza",
+        "depresso", "depressa", "vuoto", "solitudine", "solo", "sola", "abbattuto",
+        "abbattuta", "disperato", "disperata", "lutto",
+    ),
+    "joy": (
+        "gioia", "gioioso", "gioiosa", "felice", "felicità", "allegro", "allegra",
+        "lieto", "lieta", "contento", "contenta", "sereno", "serena", "entusiasta",
+        "euforia", "splendido", "meraviglioso",
+    ),
+    "fear": (
+        "paura", "ansia", "ansioso", "ansiosa", "terrore", "spavento", "spaventato",
+        "brivido", "inquieto", "inquieta", "inquietudine", "angoscia", "angosciato",
+        "panico", "terrorizzato", "agitato", "agitata",
+    ),
+}
+
+NEGATION_RE = re.compile(r"\b(non|mai|senza|niente|né|ne)\b", re.IGNORECASE | re.UNICODE)
 
 logger = logging.getLogger("aisthesis")
 logging.basicConfig(level=logging.INFO)
@@ -137,12 +150,12 @@ _classifier: Optional[Any] = None
 MODEL_ID = "MilaNLProc/feel-it-italian-emotion"
 
 
+# ---------------------------------------------------------------------------
+# App
+# ---------------------------------------------------------------------------
+
+
 def load_classifier() -> Any:
-    """
-    Carica modello e tokenizer una sola volta.
-    `PreTrainedTokenizerFast` evita problemi noti del tokenizer CamemBERT lento
-    con alcune combinazioni Python / sentencepiece.
-    """
     device = 0 if torch.cuda.is_available() else -1
     logger.info("Inizializzazione pipeline su device: %s", device)
     tokenizer = PreTrainedTokenizerFast.from_pretrained(MODEL_ID)
@@ -171,11 +184,7 @@ async def lifespan(app: FastAPI):
     _classifier = None
 
 
-app = FastAPI(
-    title="Aisthesis API",
-    version="3.2.0",
-    lifespan=lifespan,
-)
+app = FastAPI(title="Aisthesis API", version="4.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -199,19 +208,12 @@ async def favicon():
 
 
 # ---------------------------------------------------------------------------
-# Schemi Pydantic
+# Schemi
 # ---------------------------------------------------------------------------
 
 
 class ProcessRequest(BaseModel):
     text: str = Field(..., min_length=1, max_length=8000)
-
-
-class SemanticAnalysis(BaseModel):
-    emotion: EmotionName
-    confidence: float = Field(..., ge=0.0, le=1.0)
-    raw_emotion: EmotionName
-    threshold_applied: bool
 
 
 class EmotionScore(BaseModel):
@@ -220,9 +222,47 @@ class EmotionScore(BaseModel):
     score: float = Field(..., ge=0.0, le=1.0)
 
 
+class AffectiveSpace(BaseModel):
+    valence: float = Field(..., ge=-1.0, le=1.0)
+    arousal: float = Field(..., ge=0.0, le=1.0)
+    description: str
+
+
+class SemanticAnalysis(BaseModel):
+    """`emotion_mix` guida colore e suono; `dominant_emotion` è solo la prima del mix."""
+    dominant_emotion: EmotionName
+    emotion: EmotionName  # alias compat = dominant_emotion
+    emotion_mix: list[EmotionScore]
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    raw_top1_emotion: EmotionName
+    raw_emotion: EmotionName  # alias compat
+    threshold_applied: bool
+    affective_space: AffectiveSpace
+    blend_weights: list[EmotionScore]
+
+
 class InfluentialTerm(BaseModel):
     term: str
     importance: float = Field(..., ge=0.0, le=1.0)
+
+
+class ContrastiveInsight(BaseModel):
+    favored_emotion: EmotionName
+    challenger_emotion: EmotionName
+    margin: float
+    summary: str
+    terms_for_favored: list[InfluentialTerm]
+    terms_for_challenger: list[InfluentialTerm]
+
+
+class LexiconAlignment(BaseModel):
+    """Confronto tra segnale lessicale e predizione del modello."""
+    lexicon_active: bool
+    lexicon_top_emotion: Optional[EmotionName] = None
+    model_top_emotion: EmotionName
+    contradiction: bool
+    matched_terms: list[str]
+    note: str
 
 
 class ExplainabilityState(BaseModel):
@@ -230,6 +270,8 @@ class ExplainabilityState(BaseModel):
     decision_summary: str
     top_classes: list[EmotionScore]
     influential_terms: list[InfluentialTerm]
+    lexicon_alignment: LexiconAlignment
+    contrastive: Optional[ContrastiveInsight] = None
     rule_trace: list[str]
 
 
@@ -239,16 +281,45 @@ class HSVState(BaseModel):
     v: float = Field(..., ge=0.0, le=100.0)
 
 
+class ColorLayer(BaseModel):
+    emotion: EmotionName
+    weight: float = Field(..., ge=0.0, le=1.0)
+    color_name: str
+    hsv: HSVState
+    quote_excerpt: str
+
+
 class VisualState(BaseModel):
     color_name: str
     hsv: HSVState
     goethe_quote: str
     artistic_description: str
+    layers: list[ColorLayer]
+
+
+class VoiceSpec(BaseModel):
+    pitch_hz: float = Field(..., gt=0.0)
+    waveform: WaveformName
+    gain: float = Field(..., ge=0.0, le=1.0)
+    detune_cents: float = 0.0
+    delay_ms: float = 0.0
+
+
+class SonicProfile(BaseModel):
+    voices: list[VoiceSpec]
+    root_pitch_hz: float = Field(..., gt=0.0)
+    scale_name: ScaleName
+    tempo_bpm: float = Field(..., gt=0.0)
+    attack_time_ms: float = Field(..., gt=0.0)
+    release_time_ms: float = Field(..., gt=0.0)
+    filter_cutoff_hz: float = Field(..., gt=0.0)
+    reverb_mix: float = Field(..., ge=0.0, le=1.0)
+    arpeggio_pattern: list[int]
+    duration_s: float = Field(..., gt=0.0)
 
 
 class AudioTargetState(BaseModel):
-    """Parametri per motore di sintesi (SuperCollider, Web Audio, ecc.)."""
-
+    """Compatibilità + voce principale."""
     waveform: WaveformName
     pitch_hz: float = Field(..., gt=0.0)
     filter_cutoff_hz: float = Field(..., gt=0.0)
@@ -262,11 +333,12 @@ class ProcessResponse(BaseModel):
     semantic_analysis: SemanticAnalysis
     explainability: ExplainabilityState
     visual_state: VisualState
+    sonic_profile: SonicProfile
     audio_target_state: AudioTargetState
 
 
 # ---------------------------------------------------------------------------
-# Dominio: emozione → HSV → audio
+# Utilità emozione
 # ---------------------------------------------------------------------------
 
 
@@ -278,29 +350,20 @@ def map_model_label_to_emotion(label: str) -> EmotionName:
     key = _normalize_label(label)
     if key.startswith("label_"):
         key = key.replace("label_", "", 1)
-    
-    # Check mapping
     mapped = LABEL_ALIASES.get(key)
     if mapped:
         return mapped
-    
-    # Substring match for resilience
     for alias, emotion in LABEL_ALIASES.items():
         if alias in key:
             return emotion
-            
-    logger.warning("Etichetta modello non mappata: %r (key=%r) → neutral", label, key)
+    logger.warning("Etichetta non mappata: %r → neutral", label)
     return "neutral"
 
 
-def _run_classifier(text: str, clf: Any, top_k: int = 4) -> list[dict[str, Any]]:
+def _run_classifier(text: str, clf: Any, top_k: int = 5) -> list[dict[str, Any]]:
     out = clf(text, top_k=top_k, truncation=True, max_length=512)
-    
-    # Se out è una lista nested (alcune versioni di transformers)
     if isinstance(out, list) and len(out) > 0 and isinstance(out[0], list):
         out = out[0]
-
-    logger.info("Raw Inference Output: %s", out)
     if not out:
         return []
     return list(out)
@@ -320,12 +383,136 @@ def _build_top_classes(out: list[dict[str, Any]]) -> list[EmotionScore]:
     return classes
 
 
-def _score_for_emotion(out: list[dict[str, Any]], emotion: EmotionName) -> float:
-    for item in out:
-        label = str(item.get("label", ""))
-        if map_model_label_to_emotion(label) == emotion:
-            return float(item.get("score", 0.0))
-    return 0.0
+def aggregate_emotion_scores(classes: list[EmotionScore]) -> dict[EmotionName, float]:
+    agg: dict[str, float] = {}
+    for item in classes:
+        agg[item.emotion] = agg.get(item.emotion, 0.0) + item.score
+    total = sum(agg.values()) or 1.0
+    return {k: v / total for k, v in agg.items()}  # type: ignore[return-value]
+
+
+def _is_negated(text_lower: str, match_start: int) -> bool:
+    window = text_lower[max(0, match_start - 30) : match_start]
+    return bool(NEGATION_RE.search(window))
+
+
+def score_lexicon(text: str) -> tuple[dict[EmotionName, float], list[str]]:
+    """Punteggi da parole affettive esplicite nel testo."""
+    lowered = text.lower()
+    scores: dict[str, float] = {e: 0.0 for e in EMOTION_LEXICON}
+    matched: list[str] = []
+
+    for emotion, keywords in EMOTION_LEXICON.items():
+        for kw in keywords:
+            for match in re.finditer(re.escape(kw), lowered):
+                weight = 0.25 if _is_negated(lowered, match.start()) else 1.0
+                scores[emotion] += weight
+                if kw not in matched:
+                    matched.append(kw)
+
+    total = sum(scores.values())
+    if total <= 0:
+        return {}, matched
+    return {k: v / total for k, v in scores.items() if v > 0}, matched  # type: ignore[return-value]
+
+
+def hybrid_aggregate(
+    model_agg: dict[EmotionName, float],
+    lex_agg: dict[EmotionName, float],
+    text: str = "",
+) -> dict[EmotionName, float]:
+    if not lex_agg:
+        return model_agg
+
+    lex_weight = LEXICON_BLEND_WEIGHT
+    word_count = len(_word_spans(text))
+    lex_peak = max(lex_agg.values())
+    if word_count <= 6 and lex_peak >= 0.4:
+        lex_weight = 0.72
+    model_weight = 1.0 - lex_weight
+
+    emotions = set(model_agg) | set(lex_agg)
+    hybrid: dict[str, float] = {}
+    for emotion in emotions:
+        hybrid[emotion] = (
+            model_weight * model_agg.get(emotion, 0.0)
+            + lex_weight * lex_agg.get(emotion, 0.0)
+        )
+    total = sum(hybrid.values()) or 1.0
+    return {k: v / total for k, v in hybrid.items()}  # type: ignore[return-value]
+
+
+def build_lexicon_alignment(
+    model_top: EmotionName,
+    lex_agg: dict[EmotionName, float],
+    matched: list[str],
+) -> LexiconAlignment:
+    if not lex_agg:
+        return LexiconAlignment(
+            lexicon_active=False,
+            model_top_emotion=model_top,
+            contradiction=False,
+            matched_terms=[],
+            note="Nessuna parola affettiva esplicita nel testo: il mix segue il modello FEEL-IT.",
+        )
+
+    lex_top = max(lex_agg.items(), key=lambda x: x[1])[0]
+    contradiction = lex_top != model_top and lex_agg.get(lex_top, 0) >= 0.25
+
+    if contradiction:
+        note = (
+            f"Il modello indica {EMOTION_IT[model_top]}, ma le parole "
+            f"«{', '.join(matched[:4])}» segnalano {EMOTION_IT[lex_top]}: "
+            f"il mix finale corregge favorendo il lessico sulle parole esplicite."
+        )
+    else:
+        note = (
+            f"Lessico e modello concordano su {EMOTION_IT[lex_top]} "
+            f"(parole: {', '.join(matched[:4])})."
+        )
+
+    return LexiconAlignment(
+        lexicon_active=True,
+        lexicon_top_emotion=lex_top,
+        model_top_emotion=model_top,
+        contradiction=contradiction,
+        matched_terms=matched[:8],
+        note=note,
+    )
+
+
+def get_blend_weights(agg: dict[EmotionName, float]) -> list[tuple[EmotionName, float]]:
+    ranked = sorted(agg.items(), key=lambda x: x[1], reverse=True)
+    if not ranked:
+        return [("neutral", 1.0)]
+    top = ranked[:TOP_K_BLEND]
+    total = sum(w for _, w in top) or 1.0
+    blend = [(e, w / total) for e, w in top if w / total >= MIN_BLEND_WEIGHT]
+    return blend if blend else [(top[0][0], 1.0)]
+
+
+def compute_affective_space(agg: dict[EmotionName, float]) -> AffectiveSpace:
+    valence = sum(agg.get(e, 0.0) * EMOTION_VA[e][0] for e in EMOTION_VA)
+    arousal = sum(agg.get(e, 0.0) * EMOTION_VA[e][1] for e in EMOTION_VA)
+    valence = max(-1.0, min(1.0, valence))
+    arousal = max(0.0, min(1.0, arousal))
+
+    if valence > 0.35 and arousal > 0.55:
+        desc = "Quadrante attivo-positivo: energia luminosa, slancio vitale."
+    elif valence > 0.35 and arousal <= 0.55:
+        desc = "Quadrante calmo-positivo: serenità, riposo, dolcezza."
+    elif valence <= -0.35 and arousal > 0.55:
+        desc = "Quadrante attivo-negativo: tensione, urgenza, inquietudine."
+    elif valence <= -0.35:
+        desc = "Quadrante calmo-negativo: malinconia, distanza, introspezione."
+    else:
+        desc = "Zona centrale: equilibrio cromatico e sonoro, né estremi."
+
+    return AffectiveSpace(
+        valence=round(valence, 3),
+        arousal=round(arousal, 3),
+        description=desc,
+    )
 
 
 def _model_emotion_indices(model: Any) -> dict[EmotionName, int]:
@@ -341,9 +528,8 @@ def _word_spans(text: str) -> list[tuple[int, int, str]]:
     spans: list[tuple[int, int, str]] = []
     for match in re.finditer(r"\b[\wÀ-ÖØ-öø-ÿ'-]+\b", text, flags=re.UNICODE):
         term = match.group(0).strip("'-")
-        if len(term) < 2:
-            continue
-        spans.append((match.start(), match.end(), term))
+        if len(term) >= 2:
+            spans.append((match.start(), match.end(), term))
     return spans
 
 
@@ -352,26 +538,17 @@ def _is_display_term(term: str) -> bool:
     return len(normalized) >= 3 and normalized not in DISPLAY_STOPWORDS
 
 
-def explain_prediction(
-    text: str, clf: Any, raw_emotion: EmotionName, raw_score: float
-) -> list[InfluentialTerm]:
-    """
-    Spiegazione locale gradient-based:
-    misura la salienza dei token rispetto al logit della classe predetta
-    e aggrega i contributi sui segmenti di parola.
-    """
-    if raw_emotion == "neutral" or raw_score <= 0.0:
-        return []
+# ---------------------------------------------------------------------------
+# Explainability — Integrated Gradients
+# ---------------------------------------------------------------------------
 
+
+def _token_attributions_ig(
+    text: str, clf: Any, target_index: int, n_steps: int = IG_STEPS
+) -> list[float]:
     tokenizer = clf.tokenizer
     model = clf.model
     if tokenizer is None or model is None:
-        return []
-
-    emotion_indices = _model_emotion_indices(model)
-    target_index = emotion_indices.get(raw_emotion)
-    if target_index is None:
-        logger.warning("Classe %s non trovata in id2label del modello.", raw_emotion)
         return []
 
     encoded = tokenizer(
@@ -381,254 +558,468 @@ def explain_prediction(
         truncation=True,
         max_length=512,
     )
-    offsets = encoded.pop("offset_mapping")[0].tolist()
-    word_scores: dict[tuple[int, int, str], float] = {
-        span: 0.0 for span in _word_spans(text)
-    }
+    encoded.pop("offset_mapping")
+    device = next(model.parameters()).device
+    input_ids = encoded["input_ids"].to(device)
+    attention_mask = encoded["attention_mask"].to(device)
+
+    emb_layer = model.get_input_embeddings()
+    input_embeds = emb_layer(input_ids).detach()
+    baseline = torch.zeros_like(input_embeds)
+
+    accumulated = torch.zeros_like(input_embeds)
+    for step in range(1, n_steps + 1):
+        alpha = step / n_steps
+        interp = (baseline + alpha * (input_embeds - baseline)).clone()
+        interp.requires_grad_(True)
+        model.zero_grad(set_to_none=True)
+        logits = model(inputs_embeds=interp, attention_mask=attention_mask).logits
+        logits[0, target_index].backward()
+        if interp.grad is not None:
+            accumulated += interp.grad.detach()
+
+    avg_grad = accumulated / n_steps
+    attribution = (input_embeds - baseline) * avg_grad
+    return attribution[0].sum(dim=-1).abs().detach().cpu().tolist()
+
+
+def _aggregate_token_scores(
+    text: str, token_scores: list[float], offsets: list[tuple[int, int]], special_mask: list[int]
+) -> dict[tuple[int, int, str], float]:
+    word_scores: dict[tuple[int, int, str], float] = {s: 0.0 for s in _word_spans(text)}
     if not word_scores:
-        return []
+        return {}
 
-    special_tokens_mask = tokenizer.get_special_tokens_mask(
-        encoded["input_ids"][0].tolist(),
-        already_has_special_tokens=True,
-    )
-
-    model_device = next(model.parameters()).device
-    input_ids = encoded["input_ids"].to(model_device)
-    attention_mask = encoded["attention_mask"].to(model_device)
-
-    model.zero_grad(set_to_none=True)
-    embeddings = model.get_input_embeddings()(input_ids).detach()
-    embeddings.requires_grad_(True)
-    outputs = model(inputs_embeds=embeddings, attention_mask=attention_mask)
-    target_logit = outputs.logits[0, target_index]
-    target_logit.backward()
-
-    gradients = embeddings.grad
-    if gradients is None:
-        return []
-
-    token_scores = (
-        (embeddings[0] * gradients[0]).sum(dim=-1).abs().detach().cpu().tolist()
-    )
-
-    for token_score, (start, end), is_special in zip(token_scores, offsets, special_tokens_mask):
-        if is_special or start == end or token_score <= 0.0:
+    for score, (start, end), is_special in zip(token_scores, offsets, special_mask):
+        if is_special or start == end or score <= 0.0:
             continue
-
         for span in word_scores:
-            span_start, span_end, _ = span
-            if start >= span_start and end <= span_end:
-                word_scores[span] += float(token_score)
+            ss, se, _ = span
+            if start >= ss and end <= se:
+                word_scores[span] += float(score)
                 break
+    return word_scores
 
+
+def _terms_from_word_scores(word_scores: dict[tuple[int, int, str], float]) -> list[InfluentialTerm]:
     max_score = max(word_scores.values(), default=0.0)
     if max_score <= 0.0:
         return []
-
-    influential_terms = [
+    terms = [
         InfluentialTerm(term=term, importance=round(score / max_score, 4))
         for (_, _, term), score in word_scores.items()
         if (score / max_score) >= EXPLANATION_MIN_DELTA and _is_display_term(term)
     ]
-    influential_terms.sort(key=lambda item: item.importance, reverse=True)
-    return influential_terms[:EXPLANATION_TOP_TERMS]
+    terms.sort(key=lambda t: t.importance, reverse=True)
+    return terms[:EXPLANATION_TOP_TERMS]
+
+
+def explain_emotion_terms(text: str, clf: Any, emotion: EmotionName) -> list[InfluentialTerm]:
+    if emotion == "neutral":
+        return []
+    model = clf.model
+    if model is None:
+        return []
+    indices = _model_emotion_indices(model)
+    target = indices.get(emotion)
+    if target is None:
+        return []
+
+    tokenizer = clf.tokenizer
+    encoded = tokenizer(
+        text,
+        return_tensors="pt",
+        return_offsets_mapping=True,
+        truncation=True,
+        max_length=512,
+    )
+    offsets = encoded.pop("offset_mapping")[0].tolist()
+    special_mask = tokenizer.get_special_tokens_mask(
+        encoded["input_ids"][0].tolist(), already_has_special_tokens=True
+    )
+    token_scores = _token_attributions_ig(text, clf, target)
+    if not token_scores:
+        return []
+    word_scores = _aggregate_token_scores(text, token_scores, offsets, special_mask)
+    return _terms_from_word_scores(word_scores)
+
+
+def build_contrastive(
+    text: str,
+    clf: Any,
+    favored: EmotionName,
+    challenger: EmotionName,
+    favored_score: float,
+    challenger_score: float,
+) -> Optional[ContrastiveInsight]:
+    if favored == challenger:
+        return None
+    terms_f = explain_emotion_terms(text, clf, favored)
+    terms_c = explain_emotion_terms(text, clf, challenger)
+    margin = favored_score - challenger_score
+    summary = (
+        f"Il modello distingue {EMOTION_IT[favored]} ({favored_score:.0%}) da "
+        f"{EMOTION_IT[challenger]} ({challenger_score:.0%}) con margine {margin:.0%}. "
+    )
+    if terms_f and terms_c:
+        wf = ", ".join(t.term for t in terms_f[:2])
+        wc = ", ".join(t.term for t in terms_c[:2])
+        summary += f"Parole che spingono verso {EMOTION_IT[favored]}: {wf}. "
+        summary += f"Parole che tirano verso {EMOTION_IT[challenger]}: {wc}."
+    return ContrastiveInsight(
+        favored_emotion=favored,
+        challenger_emotion=challenger,
+        margin=round(margin, 4),
+        summary=summary,
+        terms_for_favored=terms_f,
+        terms_for_challenger=terms_c,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Blend cromatico Goethe
+# ---------------------------------------------------------------------------
+
+
+def blend_hsv(weights: list[tuple[EmotionName, float]]) -> tuple[float, float, float]:
+    if not weights:
+        h, s, v = GOETHE_DATA["neutral"]["hsv"]
+        return h, s, v
+    sin_sum = sum(w * math.sin(math.radians(GOETHE_DATA[e]["hsv"][0])) for e, w in weights)
+    cos_sum = sum(w * math.cos(math.radians(GOETHE_DATA[e]["hsv"][0])) for e, w in weights)
+    h = math.degrees(math.atan2(sin_sum, cos_sum)) % 360.0
+    s = sum(w * GOETHE_DATA[e]["hsv"][1] for e, w in weights)
+    v = sum(w * GOETHE_DATA[e]["hsv"][2] for e, w in weights)
+    return h, s, v
+
+
+def build_color_layers(weights: list[tuple[EmotionName, float]]) -> list[ColorLayer]:
+    layers: list[ColorLayer] = []
+    for emotion, weight in weights:
+        data = GOETHE_DATA[emotion]
+        h, s, v = data["hsv"]
+        layers.append(
+            ColorLayer(
+                emotion=emotion,
+                weight=round(weight, 4),
+                color_name=data["name"],
+                hsv=HSVState(h=h, s=s, v=v),
+                quote_excerpt=data["quote"][:90] + "…" if len(data["quote"]) > 90 else data["quote"],
+            )
+        )
+    return layers
+
+
+def composite_color_name(weights: list[tuple[EmotionName, float]]) -> str:
+    parts = [f"{GOETHE_DATA[e]['name']} {w:.0%}" for e, w in weights[:TOP_K_BLEND]]
+    return " · ".join(parts)
+
+
+def composite_quote(weights: list[tuple[EmotionName, float]]) -> str:
+    dominant = weights[0][0] if weights else "neutral"
+    base = GOETHE_DATA[dominant]["quote"]
+    if len(weights) > 1:
+        others = ", ".join(GOETHE_DATA[e]["name"] for e, _ in weights[1:])
+        return f"{base} — Nel mélange cromatico emergono anche {others}."
+    return base
+
+
+def composite_description(affective: AffectiveSpace, weights: list[tuple[EmotionName, float]]) -> str:
+    names = " e ".join(EMOTION_IT[e] for e, _ in weights[:2])
+    return (
+        f"Una tavolozza mista di {names}, modulata nello spazio affettivo "
+        f"(valence {affective.valence:+.2f}, arousal {affective.arousal:.2f}). "
+        f"{affective.description}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Profilo sonoro musicale
+# ---------------------------------------------------------------------------
+
+
+def midi_to_hz(midi: float) -> float:
+    return 440.0 * (2.0 ** ((midi - 69.0) / 12.0))
+
+
+def choose_scale(valence: float, blend: list[tuple[EmotionName, float]]) -> ScaleName:
+    emotions = {e for e, _ in blend}
+    if "anger" in emotions and "joy" in emotions:
+        return "mixolydian"
+    if "fear" in emotions or "sadness" in emotions:
+        return "dorian" if valence > -0.2 else "pentatonic_minor"
+    if valence >= 0.15:
+        return "pentatonic_major"
+    return "pentatonic_minor"
+
+
+def waveform_for_timbre(saturation: float, arousal: float) -> WaveformName:
+    if arousal > 0.75 and saturation > 70:
+        return "triangle"
+    return "sine"
+
+
+def build_arpeggio_pattern(arousal: float, valence: float, n_layers: int) -> list[int]:
+    if arousal > 0.7:
+        base = [0, 2, 1, 3, 2, 4, 3]
+    elif arousal > 0.4:
+        base = [0, 2, 4, 2, 0]
+    else:
+        base = [0, 2, 0, 4] if valence >= 0 else [0, 3, 0, 2]
+    return base[: max(4, min(8, 4 + n_layers))]
+
+
+def build_sonic_profile(
+    affective: AffectiveSpace,
+    hsv: tuple[float, float, float],
+    blend: list[tuple[EmotionName, float]],
+    confidence: float,
+) -> SonicProfile:
+    h, s, v = hsv
+    valence, arousal = affective.valence, affective.arousal
+    scale_name = choose_scale(valence, blend)
+    intervals = SCALE_INTERVALS[scale_name]
+
+    root_midi = 60.0 + valence * 7.0 + arousal * 5.0
+    root_midi = max(52.0, min(79.0, root_midi))
+    root_hz = midi_to_hz(root_midi)
+
+    pattern = build_arpeggio_pattern(arousal, valence, len(blend))
+    wform = waveform_for_timbre(s, arousal)
+
+    voices: list[VoiceSpec] = []
+    for i, degree_idx in enumerate(pattern[:4]):
+        semitone = intervals[degree_idx % len(intervals)]
+        octave_bump = 12 if i >= 2 and arousal > 0.5 else 0
+        midi_note = root_midi + semitone + octave_bump
+        gain = (0.32 / (1 + i * 0.35)) * (0.55 + confidence * 0.45) * (v / 100.0)
+        detune = (-7.0 + i * 5.0) if i > 0 else 0.0
+        delay = i * (180.0 - arousal * 80.0)
+        voices.append(
+            VoiceSpec(
+                pitch_hz=round(midi_to_hz(midi_note), 3),
+                waveform=wform,
+                gain=round(min(0.45, gain), 4),
+                detune_cents=detune,
+                delay_ms=round(delay, 1),
+            )
+        )
+
+    attack = 50.0 + (1.0 - arousal) * 750.0
+    release = 1200.0 + (1.0 - arousal) * 2200.0 + (1.0 - valence) * 400.0
+    cutoff = 600.0 + arousal * 3200.0 + s * 25.0
+    reverb = min(0.85, 0.15 + (1.0 - arousal) * 0.45 + (1.0 - v / 100.0) * 0.2)
+    tempo = 68.0 + arousal * 92.0 + confidence * 20.0
+    duration = 2.8 + arousal * 1.2 + (1.0 - arousal) * 1.5
+
+    return SonicProfile(
+        voices=voices,
+        root_pitch_hz=round(root_hz, 3),
+        scale_name=scale_name,
+        tempo_bpm=round(tempo, 1),
+        attack_time_ms=round(attack, 1),
+        release_time_ms=round(release, 1),
+        filter_cutoff_hz=round(cutoff, 1),
+        reverb_mix=round(reverb, 3),
+        arpeggio_pattern=pattern,
+        duration_s=round(duration, 2),
+    )
+
+
+def sonic_to_legacy_audio(sonic: SonicProfile, hsv: tuple[float, float, float]) -> AudioTargetState:
+    _, s, v = hsv
+    primary = sonic.voices[0] if sonic.voices else VoiceSpec(
+        pitch_hz=sonic.root_pitch_hz, waveform="sine", gain=0.3
+    )
+    return AudioTargetState(
+        waveform=primary.waveform,
+        pitch_hz=primary.pitch_hz,
+        filter_cutoff_hz=sonic.filter_cutoff_hz,
+        amplitude=round(min(0.9, primary.gain * 1.4), 4),
+        attack_time_ms=sonic.attack_time_ms,
+        reverb_mix=sonic.reverb_mix,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Inference e response
+# ---------------------------------------------------------------------------
 
 
 def run_emotion_inference(text: str, clf: Any) -> dict[str, Any]:
-    """Top-1 FEEL-IT con tracciato completo per explainability."""
     out = _run_classifier(text, clf)
     top_classes = _build_top_classes(out)
 
     if not out:
+        empty_agg: dict[EmotionName, float] = {"neutral": 1.0}
         return {
             "emotion": "neutral",
             "raw_emotion": "neutral",
+            "raw_top1_emotion": "neutral",
             "confidence": 0.0,
             "threshold_applied": False,
             "top_classes": top_classes,
+            "agg": empty_agg,
+            "blend": [("neutral", 1.0)],
+            "affective": compute_affective_space(empty_agg),
             "influential_terms": [],
+            "contrastive": None,
+            "lexicon_alignment": build_lexicon_alignment("neutral", {}, []),
         }
 
     best = max(out, key=lambda x: float(x.get("score", 0.0)))
     raw_label = str(best.get("label", ""))
     score = float(best.get("score", 0.0))
     raw_emotion = map_model_label_to_emotion(raw_label)
-    emotion = raw_emotion
-    threshold_applied = False
+    threshold_applied = score < CONFIDENCE_THRESHOLD
 
-    if score < CONFIDENCE_THRESHOLD:
-        logger.info(
-            "Confidence %.2f below threshold %.2f -> neutral",
-            score,
-            CONFIDENCE_THRESHOLD,
-        )
-        emotion = "neutral"
-        threshold_applied = True
+    model_agg = aggregate_emotion_scores(top_classes)
+    lex_agg, matched_terms = score_lexicon(text)
+    agg = hybrid_aggregate(model_agg, lex_agg, text)
+    blend = get_blend_weights(agg)
+    emotion = blend[0][0]
+    affective = compute_affective_space(agg)
+    lexicon_alignment = build_lexicon_alignment(raw_emotion, lex_agg, matched_terms)
+
+    ranked = sorted(agg.items(), key=lambda x: x[1], reverse=True)
+    favored = ranked[0][0]
+    challenger = ranked[1][0] if len(ranked) > 1 else favored
+
+    ig_target = favored
+    if lexicon_alignment.contradiction and lexicon_alignment.lexicon_top_emotion:
+        ig_target = lexicon_alignment.lexicon_top_emotion
+
+    terms = explain_emotion_terms(text, clf, ig_target)
+    contrastive = build_contrastive(
+        text, clf, favored, raw_emotion if raw_emotion != favored else challenger,
+        ranked[0][1],
+        model_agg.get(raw_emotion, 0.0) if raw_emotion != favored else ranked[1][1] if len(ranked) > 1 else 0.0,
+    )
 
     return {
         "emotion": emotion,
         "raw_emotion": raw_emotion,
+        "raw_top1_emotion": raw_emotion,
         "confidence": score,
         "threshold_applied": threshold_applied,
         "top_classes": top_classes,
-        "influential_terms": explain_prediction(text, clf, raw_emotion, score),
+        "model_agg": model_agg,
+        "lex_agg": lex_agg,
+        "agg": agg,
+        "blend": blend,
+        "affective": affective,
+        "influential_terms": terms,
+        "ig_explain_emotion": ig_target,
+        "contrastive": contrastive,
+        "lexicon_alignment": lexicon_alignment,
     }
 
 
-def goethe_data_for_emotion(emotion: EmotionName) -> dict[str, Any]:
-    return GOETHE_DATA[emotion]
+def build_decision_summary(inference: dict[str, Any]) -> str:
+    blend = inference["blend"]
+    affective = inference["affective"]
+    terms = inference["influential_terms"]
+    blend_str = " · ".join(f"{EMOTION_IT[e]} {w:.0%}" for e, w in blend)
 
-
-def waveform_from_saturation(s: float) -> WaveformName:
-    """Complessità armonica crescente con la saturazione cromatica."""
-    if s < 45.0:
-        return "sine"
-    if s < 75.0:
-        return "triangle"
-    return "sawtooth"
-
-
-def hsv_to_audio_target(h: float, s: float, v: float) -> dict[str, Any]:
-    """
-    Mapping deterministico HSV → parametri sonori (ampia differenziazione).
-    """
-    s_clamped = max(0.0, min(100.0, s))
-    v_clamped = max(0.0, min(100.0, v))
-
-    pitch_hz = BASE_FREQ_HZ * (2.0 ** (h / 360.0))
-    waveform = waveform_from_saturation(s_clamped)
-
-    # S=0 → 200 Hz; S=100 → 8000 Hz (crescita esponenziale)
-    filter_cutoff_hz = FILTER_CUTOFF_BASE_HZ * (
-        FILTER_CUTOFF_EXP_BASE ** (s_clamped / 100.0)
+    head = (
+        f"Mix emotivo top-{len(blend)} (non una sola etichetta): {blend_str}. "
     )
-
-    amplitude = v_clamped / 100.0
-
-    # V basso → lento; V alto → rapido
-    t_v = v_clamped / 100.0
-    attack_time_ms = ATTACK_SLOW_MS + (ATTACK_FAST_MS - ATTACK_SLOW_MS) * t_v
-
-    # V basso → più riverbero (suono lontano / vuoto)
-    reverb_mix = REVERB_WET_MAX * (1.0 - t_v)
-
-    return {
-        "waveform": waveform,
-        "pitch_hz": round(pitch_hz, 4),
-        "filter_cutoff_hz": round(filter_cutoff_hz, 4),
-        "amplitude": round(amplitude, 4),
-        "attack_time_ms": round(attack_time_ms, 4),
-        "reverb_mix": round(reverb_mix, 4),
-    }
-
-
-def build_decision_summary(
-    emotion: EmotionName,
-    raw_emotion: EmotionName,
-    confidence: float,
-    threshold_applied: bool,
-    influential_terms: list[InfluentialTerm],
-) -> str:
-    if threshold_applied:
-        summary = (
-            f"Il modello ha favorito '{raw_emotion}' con score {confidence:.2f}, "
-            f"ma il valore è sotto la soglia {CONFIDENCE_THRESHOLD:.2f}: "
-            f"il sistema restituisce quindi 'neutral'."
-        )
-    else:
-        summary = (
-            f"Il modello assegna il punteggio più alto a '{emotion}' "
-            f"con score {confidence:.2f}."
+    if inference["threshold_applied"]:
+        head += (
+            f"Nota: il modello top-1 ({EMOTION_IT[inference['raw_emotion']]} "
+            f"{inference['confidence']:.0%}) è sotto soglia {CONFIDENCE_THRESHOLD:.0%}. "
         )
 
-    if influential_terms:
-        terms = ", ".join(term.term for term in influential_terms[:3])
-        return f"{summary} Le parole più rilevanti per questa decisione sono: {terms}."
+    lex = inference.get("lexicon_alignment")
+    if lex and lex.contradiction:
+        head += f" {lex.note} "
 
-    return (
-        f"{summary} Nessuna parola singola ha mostrato un impatto forte: "
-        "la decisione sembra dipendere dal contesto complessivo."
+    summary = (
+        f"{head}"
+        f"Spazio affettivo: valence {affective.valence:+.2f}, arousal {affective.arousal:.2f}."
     )
+    if terms:
+        ig_em = inference.get("ig_explain_emotion", inference["blend"][0][0])
+        summary += f" Parole chiave (IG → {EMOTION_IT[ig_em]}): {', '.join(t.term for t in terms[:4])}."
+    return summary
 
 
 def build_rule_trace(
-    emotion: EmotionName,
-    color_name: str,
-    h: float,
-    s: float,
-    v: float,
-    audio: dict[str, Any],
+    blend: list[tuple[EmotionName, float]],
+    hsv: tuple[float, float, float],
+    affective: AffectiveSpace,
+    sonic: SonicProfile,
+    lexicon_alignment: Optional[LexiconAlignment] = None,
 ) -> list[str]:
-    return [
-        f"L'emozione finale '{emotion}' viene mappata sul colore '{color_name}' con HSV ({h:.0f}, {s:.0f}, {v:.0f}).",
-        f"La tonalità H={h:.0f} controlla l'altezza: pitch {audio['pitch_hz']:.1f} Hz.",
-        f"La saturazione S={s:.0f} determina il timbro: forma d'onda {audio['waveform']} e cutoff {audio['filter_cutoff_hz']:.1f} Hz.",
-        f"Il valore V={v:.0f} regola energia e spazio: ampiezza {audio['amplitude']:.2f}, attacco {audio['attack_time_ms']:.1f} ms, riverbero {audio['reverb_mix']:.2f}.",
+    h, s, v = hsv
+    blend_line = " + ".join(
+        f"{GOETHE_DATA[e]['name']} ({w:.0%})" for e, w in blend
+    )
+    trace = [
+        f"Top-{len(blend)} emozioni fondono in un colore composito: {blend_line} → HSV ({h:.0f}, {s:.0f}, {v:.0f}).",
+        f"Valence {affective.valence:+.2f} e arousal {affective.arousal:.2f} selezionano la scala {sonic.scale_name.replace('_', ' ')} e tempo {sonic.tempo_bpm:.0f} BPM.",
+        f"Il registro si ancora a {sonic.root_pitch_hz:.1f} Hz (range medio, quantizzato pentatonico — non Hz continui grezzi).",
+        f"Timbro morbido ({sonic.voices[0].waveform if sonic.voices else 'sine'}), cutoff {sonic.filter_cutoff_hz:.0f} Hz; attacco {sonic.attack_time_ms:.0f} ms, release {sonic.release_time_ms:.0f} ms.",
+        f"Arpeggio di {len(sonic.voices)} voci consonanti; riverbero {sonic.reverb_mix:.2f} modella profondità e distanza emotiva.",
+        "Goethe: colore e suono non sono confrontabili punto per punto — qui l'analogia è affettiva, non fisica.",
     ]
+    if lexicon_alignment and lexicon_alignment.lexicon_active:
+        trace.insert(
+            1,
+            f"Lessico: {lexicon_alignment.note}",
+        )
+    return trace
 
 
 def build_process_response(text: str, inference: dict[str, Any]) -> ProcessResponse:
-    emotion = inference["emotion"]
-    raw_emotion = inference["raw_emotion"]
-    confidence = inference["confidence"]
-    threshold_applied = inference["threshold_applied"]
-    top_classes = inference["top_classes"]
-    influential_terms = inference["influential_terms"]
+    blend = inference["blend"]
+    affective = inference["affective"]
+    hsv = blend_hsv(blend)
+    layers = build_color_layers(blend)
+    sonic = build_sonic_profile(affective, hsv, blend, inference["confidence"])
+    legacy = sonic_to_legacy_audio(sonic, hsv)
 
-    data = goethe_data_for_emotion(emotion)
-    h, s, v = data["hsv"]
-    audio = hsv_to_audio_target(h, s, v)
+    blend_scores = [
+        EmotionScore(emotion=e, label=e, score=round(w, 4)) for e, w in blend
+    ]
+
+    dominant = inference["emotion"]
     return ProcessResponse(
         input_text=text,
         semantic_analysis=SemanticAnalysis(
-            emotion=emotion,
-            confidence=round(float(confidence), 2),
-            raw_emotion=raw_emotion,
-            threshold_applied=threshold_applied,
+            dominant_emotion=dominant,
+            emotion=dominant,
+            emotion_mix=blend_scores,
+            confidence=round(float(inference["confidence"]), 2),
+            raw_top1_emotion=inference["raw_top1_emotion"],
+            raw_emotion=inference["raw_emotion"],
+            threshold_applied=inference["threshold_applied"],
+            affective_space=affective,
+            blend_weights=blend_scores,
         ),
         explainability=ExplainabilityState(
-            method="gradient-based token saliency aggregated by word spans",
-            decision_summary=build_decision_summary(
-                emotion=emotion,
-                raw_emotion=raw_emotion,
-                confidence=confidence,
-                threshold_applied=threshold_applied,
-                influential_terms=influential_terms,
-            ),
-            top_classes=top_classes,
-            influential_terms=influential_terms,
-            rule_trace=build_rule_trace(
-                emotion=emotion,
-                color_name=data["name"],
-                h=h,
-                s=s,
-                v=v,
-                audio=audio,
-            ),
+            method="IG + lessico italiano ibrido (50/50) + contrastivo",
+            decision_summary=build_decision_summary(inference),
+            top_classes=inference["top_classes"],
+            influential_terms=inference["influential_terms"],
+            lexicon_alignment=inference["lexicon_alignment"],
+            contrastive=inference.get("contrastive"),
+            rule_trace=build_rule_trace(blend, hsv, affective, sonic, inference.get("lexicon_alignment")),
         ),
         visual_state=VisualState(
-            color_name=data["name"],
-            hsv=HSVState(h=h, s=s, v=v),
-            goethe_quote=data["quote"],
-            artistic_description=data["description"],
+            color_name=composite_color_name(blend),
+            hsv=HSVState(h=hsv[0], s=hsv[1], v=hsv[2]),
+            goethe_quote=composite_quote(blend),
+            artistic_description=composite_description(affective, blend),
+            layers=layers,
         ),
-        audio_target_state=AudioTargetState(
-            waveform=audio["waveform"],
-            pitch_hz=audio["pitch_hz"],
-            filter_cutoff_hz=audio["filter_cutoff_hz"],
-            amplitude=audio["amplitude"],
-            attack_time_ms=audio["attack_time_ms"],
-            reverb_mix=audio["reverb_mix"],
-        ),
+        sonic_profile=sonic,
+        audio_target_state=legacy,
     )
 
 
 @app.post("/process", response_model=ProcessResponse)
 async def process_text(request: ProcessRequest) -> ProcessResponse:
-    """
-    POST `{ "text": "..." }` → emozione, stato cromatico Goethe, parametri audio avanzati.
-    """
     if _classifier is None:
         raise HTTPException(status_code=503, detail="Modello non ancora caricato.")
 
@@ -647,13 +1038,12 @@ async def process_text(request: ProcessRequest) -> ProcessResponse:
 
     payload = build_process_response(text, inference)
     logger.info(
-        "process: emotion=%s conf=%.2f waveform=%s pitch=%.1fHz reverb=%.2f len=%d",
-        payload.semantic_analysis.emotion,
-        payload.semantic_analysis.confidence,
-        payload.audio_target_state.waveform,
-        payload.audio_target_state.pitch_hz,
-        payload.audio_target_state.reverb_mix,
-        len(text),
+        "process v4: blend=%s valence=%.2f arousal=%.2f scale=%s voices=%d",
+        [e for e, _ in inference["blend"]],
+        payload.semantic_analysis.affective_space.valence,
+        payload.semantic_analysis.affective_space.arousal,
+        payload.sonic_profile.scale_name,
+        len(payload.sonic_profile.voices),
     )
     return payload
 
@@ -661,9 +1051,4 @@ async def process_text(request: ProcessRequest) -> ProcessResponse:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(
-        "main:app",
-        host="127.0.0.1",
-        port=8000,
-        reload=False,
-    )
+    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)
