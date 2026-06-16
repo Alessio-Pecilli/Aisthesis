@@ -378,31 +378,25 @@ def _run_classifier(text: str, clf: Any, top_k: int = 5) -> list[dict[str, Any]]
     return list(out)
 
 
-def _build_top_classes(out: list[dict[str, Any]], temperature: float = 1.8) -> list[EmotionScore]:
+def _build_top_classes(out: list[dict[str, Any]]) -> list[EmotionScore]:
     classes: list[EmotionScore] = []
     
-    labels = [str(item.get("label", "")) for item in sorted(out, key=lambda x: float(x.get("score", 0.0)), reverse=True)]
-    raw_scores = [float(item.get("score", 0.0)) for item in sorted(out, key=lambda x: float(x.get("score", 0.0)), reverse=True)]
-    
-    # Filtro: azzera le probabilità minuscole (< 1.5%) prima di ammorbidirle,
-    # in modo da non resuscitare emozioni assurde (es. 10% Gioia in un testo di Paura pura)
-    filtered_scores = [s if s > 0.015 else 0.0 for s in raw_scores]
-    
-    if sum(filtered_scores) > 0:
-        smoothed_scores = [math.pow(s, 1.0 / temperature) if s > 0 else 0.0 for s in filtered_scores]
-        total_smoothed = sum(smoothed_scores)
-        scaled_scores = [s / total_smoothed for s in smoothed_scores]
-    else:
-        scaled_scores = raw_scores
-
-    for label, scaled_score in zip(labels, scaled_scores):
-        classes.append(
-            EmotionScore(
-                emotion=map_model_label_to_emotion(label),
-                label=label,
-                score=round(scaled_score, 4),
+    for item in sorted(out, key=lambda x: float(x.get("score", 0.0)), reverse=True):
+        label = str(item.get("label", ""))
+        score = float(item.get("score", 0.0))
+        if score > 0.015:
+            classes.append(
+                EmotionScore(
+                    emotion=map_model_label_to_emotion(label),
+                    label=label,
+                    score=score,
+                )
             )
-        )
+            
+    total = sum(c.score for c in classes) or 1.0
+    for c in classes:
+        c.score = round(c.score / total, 4)
+        
     return classes
 
 
@@ -480,27 +474,24 @@ def build_lexicon_alignment(
         )
 
     lex_top = max(lex_agg.items(), key=lambda x: x[1])[0]
-    contradiction = lex_top != model_top and lex_agg.get(lex_top, 0) >= 0.25
+    matched_str = ", ".join(matched[:4])
 
-    if contradiction:
-        note = (
-            f"Il modello indica {EMOTION_IT[model_top]}, ma le parole "
-            f"«{', '.join(matched[:4])}» segnalano {EMOTION_IT[lex_top]}: "
-            f"il mix finale corregge favorendo il lessico sulle parole esplicite."
+    if lex_top == model_top:
+        return LexiconAlignment(
+            lexicon_active=True,
+            contradiction=False,
+            note=f"Le parole utilizzate ({matched_str}) confermano e rafforzano la sensazione di {EMOTION_IT[model_top]}.",
+            lexicon_top_emotion=lex_top,
+            model_top_emotion=model_top,
+            matched_terms=matched[:8],
         )
-    else:
-        note = (
-            f"Lessico e modello concordano su {EMOTION_IT[lex_top]} "
-            f"(parole: {', '.join(matched[:4])})."
-        )
-
     return LexiconAlignment(
         lexicon_active=True,
+        contradiction=True,
+        note=f"Sottile contrasto: parole come '{matched_str}' richiamano {EMOTION_IT[lex_top]}, ma il tono generale del testo propende maggiormente verso {EMOTION_IT[model_top]}.",
         lexicon_top_emotion=lex_top,
         model_top_emotion=model_top,
-        contradiction=contradiction,
         matched_terms=matched[:8],
-        note=note,
     )
 
 
@@ -510,12 +501,23 @@ def get_blend_weights(agg: dict[EmotionName, float]) -> list[tuple[EmotionName, 
         return [("neutral", 1.0)]
     
     top = ranked[:TOP_K_BLEND]
-    # Applica un leggero smoothing (pow 0.6) per bilanciare visivamente i mix
-    # quando ci sono emozioni in contrasto come "gioia e paura".
-    smoothed = [(e, math.pow(max(w, 1e-9), 0.6)) for e, w in top]
+    
+    # Se c'è una forte dominanza (es. l'utente ha scritto solo "rabbia"), evitiamo
+    # lo smoothing che alzerebbe artificialmente il rumore (es. portando paura al 30%).
+    # Altrimenti usiamo un power < 1.0 per bilanciare veri mix (es. "gioia e paura").
+    power = 1.0 if top[0][1] > 0.75 else 0.65
+    
+    smoothed = [(e, math.pow(max(w, 1e-9), power)) for e, w in top]
     total = sum(w for _, w in smoothed) or 1.0
-    blend = [(e, w / total) for e, w in smoothed if w / total >= MIN_BLEND_WEIGHT]
-    return blend if blend else [(top[0][0], 1.0)]
+    
+    # Filtriamo sotto il MIN_BLEND_WEIGHT
+    filtered = [(e, w / total) for e, w in smoothed if (w / total) >= MIN_BLEND_WEIGHT]
+    if not filtered:
+        return [(top[0][0], 1.0)]
+        
+    # Rinormalizziamo in modo che la somma finale sia esattamente 1.0
+    final_total = sum(w for _, w in filtered)
+    return [(e, w / final_total) for e, w in filtered]
 
 
 def compute_affective_space(agg: dict[EmotionName, float]) -> AffectiveSpace:
@@ -692,15 +694,14 @@ def build_contrastive(
     terms_f = explain_emotion_terms(text, clf, favored)
     terms_c = explain_emotion_terms(text, clf, challenger)
     margin = favored_score - challenger_score
-    summary = (
-        f"Il modello distingue {EMOTION_IT[favored]} ({favored_score:.0%}) da "
-        f"{EMOTION_IT[challenger]} ({challenger_score:.0%}) con margine {margin:.0%}. "
-    )
+    
+    summary = f"C'è una sottile tensione emotiva: il modello ha percepito principalmente {EMOTION_IT[favored]}, ma ha notato anche forti tracce di {EMOTION_IT[challenger]}. "
+    
     if terms_f and terms_c:
-        wf = ", ".join(t.term for t in terms_f[:2])
-        wc = ", ".join(t.term for t in terms_c[:2])
-        summary += f"Parole che spingono verso {EMOTION_IT[favored]}: {wf}. "
-        summary += f"Parole che tirano verso {EMOTION_IT[challenger]}: {wc}."
+        wf = ", ".join(f"'{t.term}'" for t in terms_f[:2])
+        wc = ", ".join(f"'{t.term}'" for t in terms_c[:2])
+        summary += f"Mentre parole come {wf} ancorano il testo a {EMOTION_IT[favored]}, espressioni come {wc} lasciano trasparire {EMOTION_IT[challenger]}."
+        
     return ContrastiveInsight(
         favored_emotion=favored,
         challenger_emotion=challenger,
@@ -745,27 +746,34 @@ def build_color_layers(weights: list[tuple[EmotionName, float]]) -> list[ColorLa
     return layers
 
 
-def composite_color_name(weights: list[tuple[EmotionName, float]]) -> str:
-    parts = [f"{GOETHE_DATA[e]['name']} {w:.0%}" for e, w in weights[:TOP_K_BLEND]]
-    return " · ".join(parts)
+def build_goethe_explanation(dominant: EmotionName, hsv: tuple[float, float, float], affective: AffectiveSpace, blend: list[tuple[EmotionName, float]]) -> tuple[str, str, str]:
+    if not blend:
+        return GOETHE_DATA["neutral"]["name"], GOETHE_DATA["neutral"]["quote"], "Un equilibrio sospeso, senza spiccate polarità."
 
+    color_name = "Mélange cromatico"
+    if len(blend) == 1:
+        color_name = GOETHE_DATA[dominant]["name"]
 
-def composite_quote(weights: list[tuple[EmotionName, float]]) -> str:
-    dominant = weights[0][0] if weights else "neutral"
-    base = GOETHE_DATA[dominant]["quote"]
-    if len(weights) > 1:
-        others = ", ".join(GOETHE_DATA[e]["name"] for e, _ in weights[1:])
-        return f"{base} — Nel mélange cromatico emergono anche {others}."
-    return base
+    quote = GOETHE_DATA[dominant]["quote"]
 
+    quadrant = "neutro"
+    if affective.valence > 0 and affective.arousal > 0:
+        quadrant = "di slancio ed energia vitale"
+    elif affective.valence > 0 and affective.arousal < 0:
+        quadrant = "di profonda serenità e contemplazione"
+    elif affective.valence < 0 and affective.arousal > 0:
+        quadrant = "carico di tensione e urgente inquietudine"
+    elif affective.valence < 0 and affective.arousal < 0:
+        quadrant = "intriso di malinconia, distanza e introspezione"
 
-def composite_description(affective: AffectiveSpace, weights: list[tuple[EmotionName, float]]) -> str:
-    names = " e ".join(EMOTION_IT[e] for e, _ in weights[:2])
-    return (
-        f"Una tavolozza mista di {names}, modulata nello spazio affettivo "
-        f"(valence {affective.valence:+.2f}, arousal {affective.arousal:.2f}). "
-        f"{affective.description}"
-    )
+    if len(blend) == 1:
+        desc = f"La tinta pura del {GOETHE_DATA[dominant]['name']} domina incontrastata la tavolozza, creando un'atmosfera {quadrant}."
+    else:
+        dominant_color = GOETHE_DATA[dominant]["name"]
+        other_colors = " e ".join(GOETHE_DATA[e]["name"] for e, w in blend if e != dominant)
+        desc = f"La base dominante di {dominant_color} viene sfumata con accenti di {other_colors}. Il risultato è un paesaggio emotivo {quadrant}."
+
+    return color_name, quote, desc
 
 
 # ---------------------------------------------------------------------------
@@ -954,28 +962,33 @@ def build_decision_summary(inference: dict[str, Any]) -> str:
     blend = inference["blend"]
     affective = inference["affective"]
     terms = inference["influential_terms"]
-    blend_str = " · ".join(f"{EMOTION_IT[e]} {w:.0%}" for e, w in blend)
+    blend_str = " e ".join(f"{EMOTION_IT[e]} ({w:.0%})" for e, w in blend)
 
-    head = (
-        f"Mix emotivo top-{len(blend)} (non una sola etichetta): {blend_str}. "
-    )
-    if inference["threshold_applied"]:
-        head += (
-            f"Nota: il modello top-1 ({EMOTION_IT[inference['raw_emotion']]} "
-            f"{inference['confidence']:.0%}) è sotto soglia {CONFIDENCE_THRESHOLD:.0%}. "
-        )
+    head = f"Il testo rivela un mix emotivo composto da {blend_str}. "
 
     lex = inference.get("lexicon_alignment")
     if lex and lex.contradiction:
-        head += f" {lex.note} "
+        head += f"Curiosamente, {lex.note.lower()} "
 
-    summary = (
-        f"{head}"
-        f"Spazio affettivo: valence {affective.valence:+.2f}, arousal {affective.arousal:.2f}."
-    )
+    summary = f"{head}Questa miscela si colloca in uno spazio affettivo caratterizzato da "
+    
+    if affective.valence > 0.2:
+        summary += "un'energia positiva "
+    elif affective.valence < -0.2:
+        summary += "una forte carica negativa "
+    else:
+        summary += "un umore neutrale "
+        
+    if affective.arousal > 0.2:
+        summary += "e grande intensità. "
+    elif affective.arousal < -0.2:
+        summary += "e una certa calma. "
+    else:
+        summary += "e intensità moderata. "
+
     if terms:
         ig_em = inference.get("ig_explain_emotion", inference["blend"][0][0])
-        summary += f" Parole chiave (IG → {EMOTION_IT[ig_em]}): {', '.join(t.term for t in terms[:4])}."
+        summary += f"Le parole che più di tutte hanno contribuito a far emergere {EMOTION_IT[ig_em]} sono state: {', '.join(t.term for t in terms[:4])}."
     return summary
 
 
@@ -986,22 +999,19 @@ def build_rule_trace(
     sonic: SonicProfile,
     lexicon_alignment: Optional[LexiconAlignment] = None,
 ) -> list[str]:
-    h, s, v = hsv
-    blend_line = " + ".join(
-        f"{GOETHE_DATA[e]['name']} ({w:.0%})" for e, w in blend
-    )
+    blend_line = " e ".join(f"{GOETHE_DATA[e]['name']}" for e, w in blend)
     trace = [
-        f"Top-{len(blend)} emozioni fondono in un colore composito: {blend_line} → HSV ({h:.0f}, {s:.0f}, {v:.0f}).",
-        f"Valence {affective.valence:+.2f} e arousal {affective.arousal:.2f} selezionano la scala {sonic.scale_name.replace('_', ' ')} e tempo {sonic.tempo_bpm:.0f} BPM.",
-        f"Il registro si ancora a {sonic.root_pitch_hz:.1f} Hz (range medio, quantizzato pentatonico — non Hz continui grezzi).",
-        f"Timbro morbido ({sonic.voices[0].waveform if sonic.voices else 'sine'}), cutoff {sonic.filter_cutoff_hz:.0f} Hz; attacco {sonic.attack_time_ms:.0f} ms, release {sonic.release_time_ms:.0f} ms.",
-        f"Arpeggio di {len(sonic.voices)} voci consonanti; riverbero {sonic.reverb_mix:.2f} modella profondità e distanza emotiva.",
-        "Goethe: colore e suono non sono confrontabili punto per punto — qui l'analogia è affettiva, non fisica.",
+        f"I colori scelti per le emozioni ({blend_line}) si sono fusi in un unico colore composito.",
+        f"L'umore e l'intensità del testo hanno ispirato una melodia in scala {sonic.scale_name.replace('_', ' ')} a un ritmo di {sonic.tempo_bpm:.0f} BPM.",
+        f"La frequenza di base è stata posizionata a {sonic.root_pitch_hz:.1f} Hz per risuonare con lo stato d'animo percepito.",
+        f"Il suono è stato modellato con un timbro morbido ({sonic.voices[0].waveform if sonic.voices else 'sine'}), con un attacco lento che cresce per {sonic.attack_time_ms:.0f}ms e sfuma per {sonic.release_time_ms:.0f}ms.",
+        f"L'effetto di riverbero aggiunge una sensazione di profondità e 'distanza' emotiva all'arpeggio.",
+        "Ricorda: il legame tra colore, suono ed emozione è qui un'interpretazione estetico-poetica ispirata a Goethe, non una scienza esatta.",
     ]
     if lexicon_alignment and lexicon_alignment.lexicon_active:
         trace.insert(
             1,
-            f"Lessico: {lexicon_alignment.note}",
+            f"L'analisi lessicale: {lexicon_alignment.note.lower()}",
         )
     return trace
 
@@ -1019,6 +1029,8 @@ def build_process_response(text: str, inference: dict[str, Any]) -> ProcessRespo
     ]
 
     dominant = inference["emotion"]
+    color_name, quote, desc = build_goethe_explanation(dominant, hsv, affective, blend)
+
     return ProcessResponse(
         input_text=text,
         semantic_analysis=SemanticAnalysis(
@@ -1042,10 +1054,10 @@ def build_process_response(text: str, inference: dict[str, Any]) -> ProcessRespo
             rule_trace=build_rule_trace(blend, hsv, affective, sonic, inference.get("lexicon_alignment")),
         ),
         visual_state=VisualState(
-            color_name=composite_color_name(blend),
+            color_name=color_name,
             hsv=HSVState(h=hsv[0], s=hsv[1], v=hsv[2]),
-            goethe_quote=composite_quote(blend),
-            artistic_description=composite_description(affective, blend),
+            goethe_quote=quote,
+            artistic_description=desc,
             layers=layers,
         ),
         sonic_profile=sonic,

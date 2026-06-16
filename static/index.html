@@ -77,10 +77,12 @@
         #insight-content.visible { display: flex; }
 
         .panel {
-            background: rgba(255,255,255,0.82);
-            border: 1px solid var(--border);
+            background: rgba(255,255,255,0.65);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255,255,255,0.4);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.03);
             border-radius: var(--radius);
-            padding: 22px 24px;
+            padding: 24px;
         }
         .panel-title {
             font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em;
@@ -169,6 +171,26 @@
         }
         .lexicon-ok strong { color: #3d7a52; }
 
+        .xai-toggle {
+            display: flex; align-items: center; justify-content: space-between;
+            width: 100%; background: none; border: none; cursor: pointer;
+            font-size: 0.58rem; font-weight: 700; letter-spacing: 0.2em;
+            text-transform: uppercase; color: var(--muted); text-align: left;
+            padding: 0; font-family: 'Inter', sans-serif;
+        }
+        .xai-toggle svg { width: 14px; height: 14px; transition: transform 0.3s ease; stroke: var(--muted); }
+        .xai-toggle.open svg { transform: rotate(180deg); }
+        .xai-toggle:hover { color: var(--text); }
+        .xai-toggle:hover svg { stroke: var(--text); }
+        
+        .xai-content {
+            max-height: 0; overflow: hidden; opacity: 0;
+            transition: max-height 0.4s ease, opacity 0.4s ease, margin-top 0.4s ease;
+        }
+        .xai-content.open {
+            max-height: 1200px; opacity: 1; margin-top: 16px;
+        }
+
         .replay-btn {
             display: flex; align-items: center; justify-content: center; gap: 8px;
             padding: 12px; width: 100%; background: var(--text); color: #fff;
@@ -180,28 +202,32 @@
         /* Colonna sinistra — input testo */
         .input-column {
             display: flex; flex-direction: column;
-            padding: 36px var(--pad-x) 28px;
-            background: rgba(255,255,255,0.4);
+            padding: 48px var(--pad-x);
             position: relative;
             border-right: 1px solid var(--border);
             min-width: 0;
+            background: rgba(255,255,255,0.2);
+            backdrop-filter: blur(8px);
+        }
+        .input-header-area {
+            margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid var(--border);
         }
         .input-label {
-            font-size: 0.6rem; font-weight: 700; letter-spacing: 0.2em;
-            text-transform: uppercase; color: var(--muted); margin-bottom: 10px;
+            font-size: 0.65rem; font-weight: 700; letter-spacing: 0.25em;
+            text-transform: uppercase; color: var(--muted); margin-bottom: 20px;
         }
         #emotion-input {
-            flex: 1; width: 100%; min-height: 240px; resize: none;
-            background: rgba(255,255,255,0.78); border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: clamp(24px, 3vh, 36px) clamp(20px, 2.5vw, 32px);
+            flex: 1; width: 100%; min-height: 200px; resize: none;
+            background: transparent; border: none; box-shadow: none;
+            padding: 0;
             font-family: 'Playfair Display', serif;
-            font-size: clamp(1.15rem, 1.6vw, 1.45rem); font-style: italic;
-            line-height: 1.75; outline: none;
+            font-size: clamp(1.4rem, 2.2vw, 2rem); font-style: italic;
+            line-height: 1.6; outline: none; transition: all 0.3s ease;
+            color: var(--text);
         }
-        #emotion-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(201,169,110,0.12); }
+        #emotion-input::placeholder { color: rgba(44,42,38,0.25); }
 
-        .input-footer { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .input-footer { margin-top: 32px; display: flex; flex-direction: column; gap: 16px; border-top: 1px solid rgba(44,42,38,0.06); padding-top: 24px; }
         .status-row { display: flex; align-items: center; gap: 8px; font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
         .status-dot { width: 6px; height: 6px; border-radius: 50%; background: #5a9e6f; opacity: 0.5; }
         .status-row.is-waiting .status-dot { background: var(--accent); animation: blink 1.2s infinite; }
@@ -292,12 +318,13 @@
     <div class="app-shell">
         <!-- SINISTRA: input testo -->
         <section class="input-column">
-            <div class="insight-header" style="margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid var(--border);">
+            <div class="input-header-area">
                 <h1 class="logo">Aisthesis</h1>
-                <p class="subtitle">Scrivi a sinistra · risultati a destra</p>
             </div>
+            
             <label class="input-label" for="emotion-input">L'animo esprime…</label>
-            <textarea id="emotion-input" placeholder="Scrivi ciò che senti…" autofocus></textarea>
+            <textarea id="emotion-input" placeholder="Scrivi ciò che senti, in modo libero…" autofocus></textarea>
+            
             <div class="input-footer">
                 <div class="status-row" id="status-row">
                     <div class="status-dot"></div>
@@ -307,7 +334,6 @@
                     <button class="btn-secondary" style="background:var(--text);color:#fff;border-color:var(--text);" onclick="processLive()">Analizza testo</button>
                     <button class="btn-secondary" onclick="insertRandomEmotion()">Seme casuale</button>
                 </div>
-                <span class="version-tag">v4.2 · lessico ibrido</span>
             </div>
         </section>
 
@@ -323,7 +349,7 @@
             </div>
 
             <div class="insight-header">
-                <p class="subtitle">Mix top-k · Goethe · Circumplex · XAI</p>
+                <p class="subtitle">Sinfonia cromatica · Goethe · Spazio affettivo</p>
             </div>
 
             <div class="placeholder-state" id="placeholder">
@@ -332,7 +358,7 @@
 
             <div id="insight-content">
                 <div class="panel">
-                    <p class="panel-title">Mix emotivo (top-k) — non una sola emozione</p>
+                    <p class="panel-title">Mix emotivo — Sfumature dell'animo</p>
                     <div class="mix-hero">
                         <div class="composite-swatch" id="color-swatch"></div>
                         <div>
@@ -346,30 +372,35 @@
                     <div class="metric-row">
                         <div class="metric-chip"><label>Registro</label><span id="data-freq">—</span></div>
                         <div class="metric-chip"><label>Scala</label><span id="data-scale">—</span></div>
-                        <div class="metric-chip"><label>Top-1 raw</label><span id="data-top1">—</span></div>
+                        <div class="metric-chip"><label>Emozione base</label><span id="data-top1">—</span></div>
                     </div>
                     <canvas id="oscilloscope"></canvas>
                 </div>
 
                 <div class="panel">
-                    <p class="panel-title">Goethe</p>
+                    <p class="panel-title">La Teoria dei Colori di Goethe</p>
                     <p class="quote-text" id="quote-text">—</p>
                     <p class="artistic-text" id="artistic-text">—</p>
                 </div>
 
-                <div class="panel">
-                    <p class="panel-title">Explainable AI</p>
-                    <div id="lexicon-alert" style="display:none;"></div>
-                    <p class="insight-text" id="decision-summary">—</p>
-                    <p class="panel-title" style="margin-top:14px;margin-bottom:8px;">Parole salienti (IG)</p>
-                    <div class="pill-row" id="influential-terms"></div>
-                    <div class="contrast-box" id="contrast-box" style="display:none;">
-                        <p class="panel-title" style="margin-bottom:6px;">Contrasto nel mix</p>
-                        <p class="contrast-summary" id="contrast-summary"></p>
-                        <div class="pill-row" id="contrast-pills-favored"></div>
-                        <div class="pill-row" id="contrast-pills-challenger"></div>
+                <div class="panel" id="xai-panel">
+                    <button class="xai-toggle" id="xai-toggle">
+                        Dietro le Quinte (Explainable AI)
+                        <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </button>
+                    <div id="xai-content" class="xai-content">
+                        <div id="lexicon-alert" style="display:none;"></div>
+                        <p class="insight-text" id="decision-summary">—</p>
+                        <p class="panel-title" style="margin-top:14px;margin-bottom:8px;">Parole salienti (IG)</p>
+                        <div class="pill-row" id="influential-terms"></div>
+                        <div class="contrast-box" id="contrast-box" style="display:none;">
+                            <p class="panel-title" style="margin-bottom:6px;">Contrasto nel mix</p>
+                            <p class="contrast-summary" id="contrast-summary"></p>
+                            <div class="pill-row" id="contrast-pills-favored"></div>
+                            <div class="pill-row" id="contrast-pills-challenger"></div>
+                        </div>
+                        <ul class="trace-list" id="rule-trace"></ul>
                     </div>
-                    <ul class="trace-list" id="rule-trace"></ul>
                 </div>
 
                 <button class="replay-btn" onclick="replaySound()">▶ Riascolta paesaggio sonoro</button>
@@ -410,6 +441,21 @@
 
         let audioCtx = null, analyser = null, masterGain = null, activeNodes = [], lastSonic = null;
         let debounceTimer = null, loadingInterval = null, loadingStart = 0, requestId = 0;
+
+        document.getElementById("xai-toggle").addEventListener("click", () => {
+            const btn = document.getElementById("xai-toggle");
+            const content = document.getElementById("xai-content");
+            btn.classList.toggle("open");
+            content.classList.toggle("open");
+        });
+
+        // Invia con tasto Invio (Shift+Invio per andare a capo)
+        document.getElementById("emotion-input").addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                processLive();
+            }
+        });
 
         function insertRandomEmotion() {
             const ta = document.getElementById("emotion-input");
@@ -716,8 +762,7 @@
             document.getElementById("data-freq").textContent = sonic.root_pitch_hz.toFixed(0) + " Hz";
             document.getElementById("data-scale").textContent = SCALE_IT[sonic.scale_name] || sonic.scale_name;
             const raw = data.semantic_analysis.raw_top1_emotion || data.semantic_analysis.raw_emotion;
-            const conf = (data.semantic_analysis.confidence * 100).toFixed(0);
-            document.getElementById("data-top1").textContent = `${EMOTION_IT[raw] || raw} ${conf}%`;
+            document.getElementById("data-top1").textContent = `${EMOTION_IT[raw] || raw}`;
 
             document.getElementById("quote-text").textContent = data.visual_state.goethe_quote;
             document.getElementById("artistic-text").textContent = data.visual_state.artistic_description;
