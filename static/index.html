@@ -303,7 +303,10 @@
                     <div class="status-dot"></div>
                     <span id="status-text">Pronto — inizia a scrivere</span>
                 </div>
-                <button class="btn-secondary" onclick="insertRandomEmotion()">Seme casuale</button>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn-secondary" style="background:var(--text);color:#fff;border-color:var(--text);" onclick="processLive()">Analizza testo</button>
+                    <button class="btn-secondary" onclick="insertRandomEmotion()">Seme casuale</button>
+                </div>
                 <span class="version-tag">v4.2 · lessico ibrido</span>
             </div>
         </section>
@@ -641,9 +644,7 @@
         // ── Live processing ──
         const textarea = document.getElementById("emotion-input");
         textarea.addEventListener("input", () => {
-            clearTimeout(debounceTimer);
-            setStatus("is-waiting", "In attesa… (pausa digitazione)");
-            debounceTimer = setTimeout(processLive, 700);
+            setStatus("", "Pronto — premi Analizza quando hai finito");
         });
 
         async function processLive() {
@@ -669,7 +670,22 @@
                 setStatus("", "Sincronizzato · mix top-k pronto");
             } catch (e) {
                 console.error(e);
-                if (myId === requestId) setStatus("", "Errore — riprova");
+                if (myId === requestId) {
+                    let msg = "Errore — riprova";
+                    try {
+                        let parsed = JSON.parse(e.message);
+                        if (parsed.detail) msg = parsed.detail;
+                    } catch(_) {
+                        if (e.message && e.message !== "[object Object]") msg = e.message;
+                    }
+                    setStatus("", "Errore: " + msg);
+                    
+                    // Mostra l'errore bello grande al centro
+                    document.getElementById("insight-content").classList.remove("visible");
+                    const ph = document.getElementById("placeholder");
+                    ph.style.display = "flex";
+                    ph.innerHTML = `<p style="color:#b4645a; font-family:'Playfair Display',serif; font-size:1.3rem; max-width:400px; line-height:1.5;">⚠<br>${msg}</p>`;
+                }
             } finally {
                 if (myId === requestId) stopLoading();
             }

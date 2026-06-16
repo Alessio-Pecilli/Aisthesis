@@ -107,6 +107,15 @@ DISPLAY_STOPWORDS = {
     "per", "se", "si", "sono", "su", "tra", "tu", "un", "una",
 }
 
+GENERIC_WORDS = {
+    "sento", "sentire", "provo", "provare", "sono", "essere", "ho", "avere", 
+    "faccio", "fare", "dico", "dire", "vedo", "vedere", "oggi", "ieri", "domani", 
+    "qui", "lì", "ora", "adesso", "molto", "poco", "tanto", "troppo", "tutto", 
+    "niente", "nessuno", "qualcuno", "qualcosa", "sempre", "mai", "forse", "come", 
+    "perché", "quando", "dove", "chi", "che", "cui", "quale", "quali", "quanto", 
+    "quanti", "sto", "stare", "stiamo", "state", "stanno", "sei", "siamo", "siete", "era", "ero", "erano"
+}
+
 EMOTION_IT: dict[EmotionName, str] = {
     "joy": "Gioia",
     "sadness": "Tristezza",
@@ -369,15 +378,29 @@ def _run_classifier(text: str, clf: Any, top_k: int = 5) -> list[dict[str, Any]]
     return list(out)
 
 
-def _build_top_classes(out: list[dict[str, Any]]) -> list[EmotionScore]:
+def _build_top_classes(out: list[dict[str, Any]], temperature: float = 1.8) -> list[EmotionScore]:
     classes: list[EmotionScore] = []
-    for item in sorted(out, key=lambda x: float(x.get("score", 0.0)), reverse=True):
-        label = str(item.get("label", ""))
+    
+    labels = [str(item.get("label", "")) for item in sorted(out, key=lambda x: float(x.get("score", 0.0)), reverse=True)]
+    raw_scores = [float(item.get("score", 0.0)) for item in sorted(out, key=lambda x: float(x.get("score", 0.0)), reverse=True)]
+    
+    # Filtro: azzera le probabilità minuscole (< 1.5%) prima di ammorbidirle,
+    # in modo da non resuscitare emozioni assurde (es. 10% Gioia in un testo di Paura pura)
+    filtered_scores = [s if s > 0.015 else 0.0 for s in raw_scores]
+    
+    if sum(filtered_scores) > 0:
+        smoothed_scores = [math.pow(s, 1.0 / temperature) if s > 0 else 0.0 for s in filtered_scores]
+        total_smoothed = sum(smoothed_scores)
+        scaled_scores = [s / total_smoothed for s in smoothed_scores]
+    else:
+        scaled_scores = raw_scores
+
+    for label, scaled_score in zip(labels, scaled_scores):
         classes.append(
             EmotionScore(
                 emotion=map_model_label_to_emotion(label),
                 label=label,
-                score=round(float(item.get("score", 0.0)), 4),
+                score=round(scaled_score, 4),
             )
         )
     return classes
@@ -485,9 +508,13 @@ def get_blend_weights(agg: dict[EmotionName, float]) -> list[tuple[EmotionName, 
     ranked = sorted(agg.items(), key=lambda x: x[1], reverse=True)
     if not ranked:
         return [("neutral", 1.0)]
+    
     top = ranked[:TOP_K_BLEND]
-    total = sum(w for _, w in top) or 1.0
-    blend = [(e, w / total) for e, w in top if w / total >= MIN_BLEND_WEIGHT]
+    # Applica un leggero smoothing (pow 0.6) per bilanciare visivamente i mix
+    # quando ci sono emozioni in contrasto come "gioia e paura".
+    smoothed = [(e, math.pow(max(w, 1e-9), 0.6)) for e, w in top]
+    total = sum(w for _, w in smoothed) or 1.0
+    blend = [(e, w / total) for e, w in smoothed if w / total >= MIN_BLEND_WEIGHT]
     return blend if blend else [(top[0][0], 1.0)]
 
 
@@ -535,7 +562,15 @@ def _word_spans(text: str) -> list[tuple[int, int, str]]:
 
 def _is_display_term(term: str) -> bool:
     normalized = term.strip("'-").lower()
-    return len(normalized) >= 3 and normalized not in DISPLAY_STOPWORDS
+    return len(normalized) >= 3 and normalized not in DISPLAY_STOPWORDS and normalized not in GENERIC_WORDS
+
+def has_informational_content(text: str) -> bool:
+    words = _word_spans(text)
+    for _, _, term in words:
+        normalized = term.strip("'-").lower()
+        if normalized not in DISPLAY_STOPWORDS and normalized not in GENERIC_WORDS:
+            return True
+    return False
 
 
 # ---------------------------------------------------------------------------
@@ -1026,6 +1061,12 @@ async def process_text(request: ProcessRequest) -> ProcessResponse:
     text = request.text.strip()
     if not text:
         raise HTTPException(status_code=422, detail='Il campo "text" non può essere vuoto.')
+    
+    if not has_informational_content(text):
+        raise HTTPException(
+            status_code=400, 
+            detail="Testo troppo generico. Aggiungi qualche aggettivo o parola descrittiva."
+        )
 
     try:
         inference = run_emotion_inference(text, _classifier)
