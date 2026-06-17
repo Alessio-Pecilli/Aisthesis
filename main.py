@@ -37,9 +37,22 @@ EXPLANATION_TOP_TERMS = 6
 EXPLANATION_MIN_DELTA = 0.008
 IG_STEPS = 20
 
-EmotionName = Literal["joy", "sadness", "anger", "fear", "neutral"]
-WaveformName = Literal["sine", "triangle", "sawtooth"]
-ScaleName = Literal["pentatonic_major", "pentatonic_minor", "dorian", "mixolydian"]
+EmotionName = Literal["joy", "sadness", "anger", "fear", "surprise", "disgust", "trust", "anticipation", "love", "awe", "neutral"]
+WaveformName = Literal["sine", "triangle", "sawtooth", "square"]
+ScaleName = Literal["pentatonic_major", "pentatonic_minor", "dorian", "mixolydian", "phrygian", "lydian"]
+
+# ---------------------------------------------------------------------------
+# Mappature & Costanti (Aesthetics & Semantics)
+# ---------------------------------------------------------------------------
+
+SCALES: dict[ScaleName, list[int]] = {
+    "dorian": [0, 2, 3, 5, 7, 9, 10],
+    "mixolydian": [0, 2, 4, 5, 7, 9, 10],
+    "pentatonic_major": [0, 2, 4, 7, 9],
+    "pentatonic_minor": [0, 3, 5, 7, 10],
+    "phrygian": [0, 1, 3, 5, 7, 8, 10],
+    "lydian": [0, 2, 4, 6, 7, 9, 11],
+}
 
 # Russell circumplex — coordinate normalizzate [-1, 1]
 EMOTION_VA: dict[EmotionName, tuple[float, float]] = {
@@ -47,6 +60,12 @@ EMOTION_VA: dict[EmotionName, tuple[float, float]] = {
     "anger": (-0.72, 0.88),
     "sadness": (-0.78, 0.22),
     "fear": (-0.65, 0.78),
+    "surprise": (0.20, 0.85),
+    "disgust": (-0.60, 0.40),
+    "trust": (0.60, -0.20),
+    "anticipation": (0.20, 0.60),
+    "love": (0.80, 0.30),
+    "awe": (0.50, 0.70),
     "neutral": (0.05, 0.30),
 }
 
@@ -55,6 +74,8 @@ SCALE_INTERVALS: dict[ScaleName, list[int]] = {
     "pentatonic_minor": [0, 3, 5, 7, 10],
     "dorian": [0, 2, 3, 5, 7, 9, 10],
     "mixolydian": [0, 2, 4, 5, 7, 9, 10],
+    "phrygian": [0, 1, 3, 5, 7, 8, 10],
+    "lydian": [0, 2, 4, 6, 7, 9, 11],
 }
 
 GOETHE_DATA: dict[str, dict[str, Any]] = {
@@ -82,6 +103,42 @@ GOETHE_DATA: dict[str, dict[str, Any]] = {
         "quote": "Rispetto al blu puro, questo colore appare più inquieto ed oppressivo.",
         "description": "Evoca una tristezza che tende all'oppressione; qualcosa di fastidioso nell'aria.",
     },
+    "surprise": {
+        "hsv": (30.0, 85.0, 95.0),
+        "name": "Arancione",
+        "quote": "Un colore pieno di energia che risveglia improvvisamente i sensi.",
+        "description": "L'intensità dell'arancione stimola l'attenzione e cattura lo sguardo in un lampo.",
+    },
+    "disgust": {
+        "hsv": (70.0, 60.0, 50.0),
+        "name": "Verde Marcio",
+        "quote": "Una mescolanza sgradevole che allontana e altera l'equilibrio.",
+        "description": "Ispira un senso di repulsione e rifiuto, un tono che l'occhio cerca di evitare.",
+    },
+    "trust": {
+        "hsv": (195.0, 45.0, 90.0),
+        "name": "Azzurro",
+        "quote": "Ci attira verso di sé, donando un senso di vastità e di riposo.",
+        "description": "Una tonalità chiara e pacifica che infonde sicurezza e tranquillità.",
+    },
+    "anticipation": {
+        "hsv": (345.0, 80.0, 75.0),
+        "name": "Cremisi",
+        "quote": "L'oscurarsi verso il rosso incute gravità e una sensazione di imminenza.",
+        "description": "Densità cromatica che suggerisce qualcosa che sta per compiersi.",
+    },
+    "love": {
+        "hsv": (330.0, 35.0, 95.0),
+        "name": "Rosa",
+        "quote": "Un riverbero di luce calda che evoca pura grazia e tenerezza giovanile.",
+        "description": "Un'estensione addolcita del rosso che cinge in un abbraccio delicato.",
+    },
+    "awe": {
+        "hsv": (290.0, 70.0, 60.0),
+        "name": "Porpora",
+        "quote": "Il colore della massima dignità, unisce in sé la più grande potenza e maestà.",
+        "description": "Evoca un timore reverenziale e un profondo senso del sublime.",
+    },
     "neutral": {
         "hsv": (128.0, 38.0, 72.0),
         "name": "Verde",
@@ -99,6 +156,18 @@ LABEL_ALIASES: dict[str, EmotionName] = {
     "tristezza": "sadness",
     "fear": "fear",
     "paura": "fear",
+    "surprise": "surprise",
+    "sorpresa": "surprise",
+    "disgust": "disgust",
+    "disgusto": "disgust",
+    "trust": "trust",
+    "fiducia": "trust",
+    "anticipation": "anticipation",
+    "attesa": "anticipation",
+    "love": "love",
+    "amore": "love",
+    "awe": "awe",
+    "ammirazione": "awe",
 }
 
 DISPLAY_STOPWORDS = {
@@ -121,6 +190,12 @@ EMOTION_IT: dict[EmotionName, str] = {
     "sadness": "Tristezza",
     "anger": "Rabbia",
     "fear": "Paura",
+    "surprise": "Sorpresa",
+    "disgust": "Disgusto",
+    "trust": "Fiducia",
+    "anticipation": "Attesa",
+    "love": "Amore",
+    "awe": "Ammirazione",
     "neutral": "Equilibrio",
 }
 
@@ -131,22 +206,57 @@ EMOTION_LEXICON: dict[EmotionName, tuple[str, ...]] = {
         "furioso", "furiosa", "furiosi", "ira", "collera", "uffa", "incazzato",
         "incazzata", "odio", "furia", "rabbioso", "rabbiosa", "infuriato",
         "infuriata", "stizzito", "stizzita", "indignato", "indignata",
+        "nervoso", "nervosa", "frustrato", "frustrata", "vendetta", "rancore", 
+        "ostile", "ostilità", "aggressivo",
     ),
     "sadness": (
         "triste", "tristezza", "tristi", "piango", "piangere", "piange", "pianto",
         "lacrima", "lacrime", "malinconia", "malinconico", "dolore", "sofferenza",
         "depresso", "depressa", "vuoto", "solitudine", "solo", "sola", "abbattuto",
         "abbattuta", "disperato", "disperata", "lutto",
+        "stanco", "stanca", "deluso", "delusa", "annoiato", "annoiata", "noia",
+        "nostalgia", "rimpianto", "fragile", "rassegnato", "rassegnata",
     ),
     "joy": (
         "gioia", "gioioso", "gioiosa", "felice", "felicità", "allegro", "allegra",
         "lieto", "lieta", "contento", "contenta", "sereno", "serena", "entusiasta",
         "euforia", "splendido", "meraviglioso",
+        "fortunato", "fortunata", "speranza", "grato", "grata",
+        "fiero", "fiera", "orgoglioso", "orgogliosa", "ottimista", "soddisfatto",
+        "eccitato", "eccitata", "vitalità", "energia", "entusiasmo",
     ),
     "fear": (
         "paura", "ansia", "ansioso", "ansiosa", "terrore", "spavento", "spaventato",
         "brivido", "inquieto", "inquieta", "inquietudine", "angoscia", "angosciato",
         "panico", "terrorizzato", "agitato", "agitata",
+        "preoccupato", "preoccupata", "incerto", "incerta", "confuso", "confusa",
+        "smarrito", "smarrita", "minaccia", "pericolo",
+    ),
+    "surprise": (
+        "sorpresa", "sorpreso", "stupore", "meraviglia", "meravigliato",
+        "inaspettato", "shock", "incredibile", "sbalordito", "sbalordita",
+        "allibito", "allibita", "sconvolto", "sconvolta",
+    ),
+    "disgust": (
+        "disgusto", "disgustato", "disgustata", "schifo", "ribrezzo", "vomito",
+        "ripugnante", "orribile", "ributtante", "nausea",
+    ),
+    "trust": (
+        "fiducia", "sicuro", "sicura", "sicurezza", "affidabile", "protetto",
+        "protetta", "protezione", "pace", "pacifico", "amico", "amichevole",
+        "sincero", "verità", "rilassato", "rilassata",
+    ),
+    "anticipation": (
+        "attesa", "aspettativa", "curiosità", "curioso", "curiosa", "impazienza",
+        "impaziente", "imminente", "trepidazione", "attendo", "sospeso",
+    ),
+    "love": (
+        "amore", "amato", "amata", "amo", "amare", "cuore", "dolcezza", "tenerezza",
+        "tenero", "tenera", "affetto", "abbraccio", "bacio", "passione", "innamorato",
+    ),
+    "awe": (
+        "solenne", "sublime", "maestoso", "divino", "incanto", "sacro", "potente",
+        "immensità", "infinito", "grandioso", "rispetto", "riverenza",
     ),
 }
 
@@ -463,6 +573,7 @@ def build_lexicon_alignment(
     model_top: EmotionName,
     lex_agg: dict[EmotionName, float],
     matched: list[str],
+    hybrid_top: EmotionName,
 ) -> LexiconAlignment:
     if not lex_agg:
         return LexiconAlignment(
@@ -485,6 +596,17 @@ def build_lexicon_alignment(
             model_top_emotion=model_top,
             matched_terms=matched[:8],
         )
+        
+    if lex_top == hybrid_top:
+        return LexiconAlignment(
+            lexicon_active=True,
+            contradiction=True,
+            note=f"Il modello neurale aveva percepito sfumature di {EMOTION_IT[model_top]}, ma parole esplicite come '{matched_str}' hanno orientato decisamente il risultato verso {EMOTION_IT[lex_top]}.",
+            lexicon_top_emotion=lex_top,
+            model_top_emotion=model_top,
+            matched_terms=matched[:8],
+        )
+        
     return LexiconAlignment(
         lexicon_active=True,
         contradiction=True,
@@ -787,13 +909,26 @@ def midi_to_hz(midi: float) -> float:
 
 def choose_scale(valence: float, blend: list[tuple[EmotionName, float]]) -> ScaleName:
     emotions = {e for e, _ in blend}
-    if "anger" in emotions and "joy" in emotions:
-        return "mixolydian"
-    if "fear" in emotions or "sadness" in emotions:
-        return "dorian" if valence > -0.2 else "pentatonic_minor"
+    
+    # Valenza positiva (Gioia/Tranquillità)
     if valence >= 0.15:
-        return "pentatonic_major"
-    return "pentatonic_minor"
+        if "anger" in emotions or "fear" in emotions:
+            return "mixolydian" # Gioia mista a tensione
+        return "lydian" if valence > 0.6 else "pentatonic_major"
+        
+    # Valenza negativa (Tristezza/Rabbia/Paura)
+    elif valence < -0.15:
+        if "anger" in emotions and "fear" in emotions:
+            return "phrygian" # Tensione estrema
+        if "anger" in emotions:
+            return "phrygian" # Rabbia (molto tesa)
+        if "sadness" in emotions:
+            return "pentatonic_minor" # Tristezza (malinconica)
+        return "dorian" # Paura o tensione moderata
+        
+    # Valenza neutra (Equilibrio)
+    else:
+        return "dorian" if "sadness" in emotions else "pentatonic_minor"
 
 
 def waveform_for_timbre(saturation: float, arousal: float) -> WaveformName:
@@ -922,7 +1057,7 @@ def run_emotion_inference(text: str, clf: Any) -> dict[str, Any]:
     blend = get_blend_weights(agg)
     emotion = blend[0][0]
     affective = compute_affective_space(agg)
-    lexicon_alignment = build_lexicon_alignment(raw_emotion, lex_agg, matched_terms)
+    lexicon_alignment = build_lexicon_alignment(raw_emotion, lex_agg, matched_terms, emotion)
 
     ranked = sorted(agg.items(), key=lambda x: x[1], reverse=True)
     favored = ranked[0][0]

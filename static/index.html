@@ -330,9 +330,10 @@
                     <div class="status-dot"></div>
                     <span id="status-text">Pronto — inizia a scrivere</span>
                 </div>
-                <div style="display: flex; gap: 12px;">
+                <div style="display: flex; gap: 12px; flex-wrap: wrap;">
                     <button class="btn-secondary" style="background:var(--text);color:#fff;border-color:var(--text);" onclick="processLive()">Analizza testo</button>
                     <button class="btn-secondary" onclick="insertRandomEmotion()">Seme casuale</button>
+                    <button class="btn-secondary" onclick="clearInput()">Cancella</button>
                 </div>
             </div>
         </section>
@@ -368,7 +369,15 @@
                     </div>
                     <div class="palette-row" id="palette-row"></div>
                     <div class="emotion-bars" id="emotion-bars"></div>
-                    <div class="va-bars" id="va-bars"></div>
+                    
+                    <div style="margin-top: 16px; margin-bottom: 4px; font-size: 0.6rem; color: var(--muted); display: flex; justify-content: space-between; align-items: flex-end;">
+                        <span style="font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em;">Spazio Affettivo</span>
+                        <span style="font-size: 0.55rem; opacity: 0.8; max-width: 220px; text-align: right; line-height: 1.4;">
+                            <strong>Valenza:</strong> Positività o Negatività<br/>
+                            <strong>Attivazione:</strong> Calma o Energia
+                        </span>
+                    </div>
+                    <div class="va-bars" id="va-bars" style="margin-top: 4px;"></div>
                     <div class="metric-row">
                         <div class="metric-chip"><label>Registro</label><span id="data-freq">—</span></div>
                         <div class="metric-chip"><label>Scala</label><span id="data-scale">—</span></div>
@@ -421,8 +430,8 @@
             "Rabbia fredda, tristezza antica — un blu-vermiglio che non perdona."
         ];
 
-        const EMOTION_IT = { joy: "Gioia", sadness: "Tristezza", anger: "Rabbia", fear: "Paura", neutral: "Equilibrio" };
-        const EMOTION_COLORS = { joy: "#c9a96e", sadness: "#5a7a9e", anger: "#b4645a", fear: "#7a5a9e", neutral: "#5a9e6f" };
+        const EMOTION_IT = { joy: "Gioia", sadness: "Tristezza", anger: "Rabbia", fear: "Paura", surprise: "Sorpresa", disgust: "Disgusto", trust: "Fiducia", anticipation: "Attesa", love: "Amore", awe: "Ammirazione", neutral: "Equilibrio" };
+        const EMOTION_COLORS = { joy: "#c9a96e", sadness: "#5a7a9e", anger: "#b4645a", fear: "#7a5a9e", surprise: "#e88c3a", disgust: "#8a9e5a", trust: "#6cb6d4", anticipation: "#d14b68", love: "#e388af", awe: "#8e4a9e", neutral: "#5a9e6f" };
         const SCALE_IT = {
             pentatonic_major: "Pent. magg.", pentatonic_minor: "Pent. min.",
             dorian: "Dorica", mixolydian: "Misolidia"
@@ -461,6 +470,16 @@
             const ta = document.getElementById("emotion-input");
             ta.value = RANDOM_EMOTIONS[Math.floor(Math.random() * RANDOM_EMOTIONS.length)];
             ta.dispatchEvent(new Event("input"));
+        }
+
+        function clearInput() {
+            const ta = document.getElementById("emotion-input");
+            ta.value = "";
+            ta.focus();
+            document.getElementById("insight-content").classList.remove("visible");
+            document.getElementById("placeholder").style.display = "flex";
+            document.getElementById("status-text").textContent = "Pronto — inizia a scrivere";
+            document.getElementById("status-row").className = "status-row";
         }
 
         // ── Loading UI ──
@@ -761,8 +780,8 @@
             const sonic = data.sonic_profile;
             document.getElementById("data-freq").textContent = sonic.root_pitch_hz.toFixed(0) + " Hz";
             document.getElementById("data-scale").textContent = SCALE_IT[sonic.scale_name] || sonic.scale_name;
-            const raw = data.semantic_analysis.raw_top1_emotion || data.semantic_analysis.raw_emotion;
-            document.getElementById("data-top1").textContent = `${EMOTION_IT[raw] || raw}`;
+            const dom = data.semantic_analysis.dominant_emotion;
+            document.getElementById("data-top1").textContent = `${EMOTION_IT[dom] || dom}`;
 
             document.getElementById("quote-text").textContent = data.visual_state.goethe_quote;
             document.getElementById("artistic-text").textContent = data.visual_state.artistic_description;
