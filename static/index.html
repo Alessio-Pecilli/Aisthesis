@@ -137,7 +137,7 @@
         .metric-chip label { font-size: 0.55rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
         .metric-chip span { display: block; font-family: 'Playfair Display', serif; font-size: 1rem; margin-top: 3px; }
 
-        #oscilloscope { width: 100%; height: 40px; margin-top: 12px; opacity: 0.1; border-radius: 6px; }
+        #oscilloscope { width: 100%; height: 40px; margin-top: 12px; opacity: 0.1; border-radius: 6px; display: block; }
 
         .quote-text { font-family: 'Playfair Display', serif; font-style: italic; font-size: 1.1rem; line-height: 1.5; margin-bottom: 10px; }
         .artistic-text { font-size: 0.82rem; line-height: 1.7; color: var(--muted); }
@@ -149,15 +149,12 @@
             background: rgba(44,42,38,0.05); border: 1px solid rgba(44,42,38,0.08);
         }
         .pill-favored { background: rgba(90,158,111,0.12); border-color: rgba(90,158,111,0.25); }
-        .pill-challenger { background: rgba(180,100,90,0.1); border-color: rgba(180,100,90,0.2); }
         .pill-mix { background: rgba(201,169,110,0.15); border-color: rgba(201,169,110,0.3); font-weight: 600; }
 
         .trace-list { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
         .trace-list li { font-size: 0.8rem; line-height: 1.6; color: var(--muted); padding-left: 14px; position: relative; }
         .trace-list li::before { content: ''; position: absolute; left: 0; top: 9px; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
 
-        .contrast-box { margin-top: 12px; padding: 14px; background: rgba(201,169,110,0.08); border-radius: 8px; border: 1px solid rgba(201,169,110,0.2); }
-        .contrast-summary { font-size: 0.82rem; line-height: 1.65; }
 
         .lexicon-alert {
             margin-top: 12px; padding: 14px 16px; border-radius: 8px;
@@ -350,21 +347,22 @@
             </div>
 
             <div class="insight-header">
-                <p class="subtitle">Sinfonia cromatica · Goethe · Spazio affettivo</p>
+                <p class="subtitle">Teoria dei Colori · Goethe · Sonificazione cromatica</p>
             </div>
 
             <div class="placeholder-state" id="placeholder">
-                <p>I risultati compariranno qui: palette, mix emotivo, spiegazioni e suono.</p>
+                <p>I risultati compariranno qui: palette goethiana, mix cromatico, spiegazioni e paesaggio sonoro.</p>
             </div>
 
             <div id="insight-content">
                 <div class="panel">
-                    <p class="panel-title">Mix emotivo — Sfumature dell'animo</p>
+                    <p class="panel-title">Mix cromatico goethiano</p>
                     <div class="mix-hero">
                         <div class="composite-swatch" id="color-swatch"></div>
                         <div>
                             <div class="mix-title" id="data-color-name">—</div>
                             <div class="mix-sub" id="affective-desc">—</div>
+                            <div class="mix-sub" id="pole-desc" style="margin-top:4px;font-size:0.72rem;"></div>
                         </div>
                     </div>
                     <div class="palette-row" id="palette-row"></div>
@@ -381,7 +379,8 @@
                     <div class="metric-row">
                         <div class="metric-chip"><label>Registro</label><span id="data-freq">—</span></div>
                         <div class="metric-chip"><label>Scala</label><span id="data-scale">—</span></div>
-                        <div class="metric-chip"><label>Emozione base</label><span id="data-top1">—</span></div>
+                        <div class="metric-chip"><label>Colore base</label><span id="data-top1">—</span></div>
+                        <div class="metric-chip"><label>Canonici / est.</label><span id="data-goethe-count">—</span></div>
                     </div>
                     <canvas id="oscilloscope"></canvas>
                 </div>
@@ -402,12 +401,6 @@
                         <p class="insight-text" id="decision-summary">—</p>
                         <p class="panel-title" style="margin-top:14px;margin-bottom:8px;">Parole salienti (IG)</p>
                         <div class="pill-row" id="influential-terms"></div>
-                        <div class="contrast-box" id="contrast-box" style="display:none;">
-                            <p class="panel-title" style="margin-bottom:6px;">Contrasto nel mix</p>
-                            <p class="contrast-summary" id="contrast-summary"></p>
-                            <div class="pill-row" id="contrast-pills-favored"></div>
-                            <div class="pill-row" id="contrast-pills-challenger"></div>
-                        </div>
                         <ul class="trace-list" id="rule-trace"></ul>
                     </div>
                 </div>
@@ -430,8 +423,12 @@
             "Rabbia fredda, tristezza antica — un blu-vermiglio che non perdona."
         ];
 
+        const GOETHE_COLOR_IT = {
+            gelb: "Giallo", gelbrot: "Arancione", rotgelb: "Vermiglio", blau: "Blu",
+            blaurot: "Violetto", rotblau: "Porpora", gruen: "Verde",
+            rosa: "Rosa", azzurro: "Azzurro", verde_marcio: "Verde Marcio", cremisi: "Cremisi"
+        };
         const EMOTION_IT = { joy: "Gioia", sadness: "Tristezza", anger: "Rabbia", fear: "Paura", surprise: "Sorpresa", disgust: "Disgusto", trust: "Fiducia", anticipation: "Attesa", love: "Amore", awe: "Ammirazione", neutral: "Equilibrio" };
-        const EMOTION_COLORS = { joy: "#c9a96e", sadness: "#5a7a9e", anger: "#b4645a", fear: "#7a5a9e", surprise: "#e88c3a", disgust: "#8a9e5a", trust: "#6cb6d4", anticipation: "#d14b68", love: "#e388af", awe: "#8e4a9e", neutral: "#5a9e6f" };
         const SCALE_IT = {
             pentatonic_major: "Pent. magg.", pentatonic_minor: "Pent. min.",
             dorian: "Dorica", mixolydian: "Misolidia"
@@ -439,11 +436,11 @@
 
         const LOADING_STAGES = [
             { label: "Lettura del testo…", progress: 12 },
-            { label: "Classificazione FEEL-IT (top-k)…", progress: 30 },
-            { label: "Fusione cromatica Goethe…", progress: 50 },
-            { label: "Calcolo spazio affettivo…", progress: 65 },
-            { label: "Integrated Gradients…", progress: 78 },
-            { label: "Sintesi del paesaggio sonoro…", progress: 92 },
+            { label: "FEEL-IT → traduzione cromatica…", progress: 28 },
+            { label: "Lessico goethiano…", progress: 42 },
+            { label: "Fusione palette Goethe…", progress: 58 },
+            { label: "Sonificazione dal colore…", progress: 75 },
+            { label: "Integrated Gradients…", progress: 88 },
         ];
 
         const API_BASE = window.location.port === "8000" ? "" : "http://127.0.0.1:8000";
@@ -609,7 +606,7 @@
             const buf = new Uint8Array(analyser.frequencyBinCount);
             (function draw() {
                 requestAnimationFrame(draw);
-                if (!canvas.offsetWidth) return;
+                if (!canvas.offsetWidth || !analyser) return;
                 canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
                 analyser.getByteTimeDomainData(buf);
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -653,17 +650,21 @@
             });
         }
 
-        function renderEmotionBars(mix) {
+        function renderEmotionBars(mix, layers) {
             const el = document.getElementById("emotion-bars");
             el.innerHTML = "";
+            const layerMap = {};
+            (layers || []).forEach(l => { layerMap[l.goethe_color] = l; });
             (mix || []).forEach(item => {
                 const row = document.createElement("div");
                 row.className = "emotion-bar-row";
                 const pct = (item.score * 100).toFixed(0);
-                const color = EMOTION_COLORS[item.emotion] || "#999";
+                const layer = layerMap[item.color_id];
+                const hex = layer ? hsvToHex(layer.hsv.h, layer.hsv.s, layer.hsv.v) : "#999";
+                const ext = item.source === "extension" ? " · est." : "";
                 row.innerHTML = `
-                    <span class="emotion-bar-label">${EMOTION_IT[item.emotion] || item.emotion}</span>
-                    <div class="emotion-bar-track"><div class="emotion-bar-fill" style="width:0%;background:${color}"></div></div>
+                    <span class="emotion-bar-label">${item.name || GOETHE_COLOR_IT[item.color_id] || item.color_id}${ext}</span>
+                    <div class="emotion-bar-track"><div class="emotion-bar-fill" style="width:0%;background:${hex}"></div></div>
                     <span class="emotion-bar-pct">${pct}%</span>`;
                 el.appendChild(row);
                 requestAnimationFrame(() => {
@@ -732,7 +733,7 @@
                 if (myId !== requestId) return;
                 if (!res.ok) throw new Error(await res.text());
                 updateUI(await res.json());
-                setStatus("", "Sincronizzato · mix top-k pronto");
+                setStatus("", "Sincronizzato · palette goethiana pronta");
             } catch (e) {
                 console.error(e);
                 if (myId === requestId) {
@@ -770,18 +771,24 @@
             });
 
             renderPalette(data.visual_state.layers);
-            const mix = data.semantic_analysis.emotion_mix || data.semantic_analysis.blend_weights;
-            renderEmotionBars(mix);
+            const goetheMix = data.goethe_analysis?.color_mix || [];
+            renderEmotionBars(goetheMix, data.visual_state.layers);
 
-            document.getElementById("data-color-name").textContent = data.visual_state.color_name;
+            document.getElementById("data-color-name").textContent = data.goethe_analysis?.color_name || data.visual_state.color_name;
             document.getElementById("affective-desc").textContent = data.semantic_analysis.affective_space.description;
+            document.getElementById("pole-desc").textContent = data.goethe_analysis?.pole_description || "";
             renderVaBars(data.semantic_analysis.affective_space);
 
             const sonic = data.sonic_profile;
             document.getElementById("data-freq").textContent = sonic.root_pitch_hz.toFixed(0) + " Hz";
             document.getElementById("data-scale").textContent = SCALE_IT[sonic.scale_name] || sonic.scale_name;
-            const dom = data.semantic_analysis.dominant_emotion;
-            document.getElementById("data-top1").textContent = `${EMOTION_IT[dom] || dom}`;
+            const domColor = data.goethe_analysis?.dominant_color;
+            document.getElementById("data-top1").textContent = GOETHE_COLOR_IT[domColor] || domColor || "—";
+            const ga = data.goethe_analysis;
+            if (ga) {
+                document.getElementById("data-goethe-count").textContent =
+                    `${ga.canonical_count} / ${ga.extension_count}`;
+            }
 
             document.getElementById("quote-text").textContent = data.visual_state.goethe_quote;
             document.getElementById("artistic-text").textContent = data.visual_state.artistic_description;
@@ -792,8 +799,10 @@
             if (lex?.lexicon_active) {
                 alertEl.style.display = "block";
                 alertEl.className = "lexicon-alert" + (lex.contradiction ? "" : " lexicon-ok");
+                const colorNote = lex.lexicon_top_color
+                    ? ` (${GOETHE_COLOR_IT[lex.lexicon_top_color] || lex.lexicon_top_color})` : "";
                 alertEl.innerHTML = lex.contradiction
-                    ? `<strong>⚠ Modello vs lessico</strong>${lex.note}`
+                    ? `<strong>⚠ Modello vs lessico cromatico</strong>${lex.note}${colorNote}`
                     : `<strong>✓ Lessico concorde</strong>${lex.note}`;
             } else {
                 alertEl.style.display = "none";
@@ -801,17 +810,6 @@
 
             renderPills("influential-terms", data.explainability.influential_terms,
                 t => `"${t.term}" ${(t.importance * 100).toFixed(0)}%`, "Nessuna parola saliente");
-
-            const contrast = data.explainability.contrastive;
-            const cbox = document.getElementById("contrast-box");
-            if (contrast) {
-                cbox.style.display = "block";
-                document.getElementById("contrast-summary").textContent = contrast.summary;
-                renderPills("contrast-pills-favored", contrast.terms_for_favored,
-                    t => `${t.term} → ${EMOTION_IT[contrast.favored_emotion]}`, "—", "pill-favored");
-                renderPills("contrast-pills-challenger", contrast.terms_for_challenger,
-                    t => `${t.term} → ${EMOTION_IT[contrast.challenger_emotion]}`, "—", "pill-challenger");
-            } else cbox.style.display = "none";
 
             renderRuleTrace(data.explainability.rule_trace);
             lastSonic = sonic;

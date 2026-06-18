@@ -1,37 +1,36 @@
-# Aisthesis v4.2
+# Aisthesis v5.0
 
-**Sonificazione semantica** — progetto universitario che trasforma testo italiano in palette cromatiche (Goethe), paesaggi sonori e spiegazioni XAI.
+**Sonificazione semantica goethiana** — testo italiano → palette cromatica (Goethe) → paesaggio sonoro → spiegazioni XAI.
 
 ## Cosa fa
 
-- Classifica le emozioni con **FEEL-IT** (Transformers, italiano)
-- Costruisce un **mix top-k** (fino a 4 emozioni), non una sola etichetta
-- Corregge errori del modello su testi brevi con un **lessico affettivo italiano** (ibrido 50/50, fino al 72% su frasi corte)
-- Fonde i colori Goethe in una **tavolozza composita** (media circolare HSV)
-- Deriva **valence / arousal** (circumplex di Russell) per scala, tempo e timbro
-- Sintetizza un **profilo sonoro multi-voce** (pentatonica, arpeggio, riverbero)
-- Spiega le decisioni con **Integrated Gradients**, analisi contrastiva e allineamento lessico
+- Traduce il segnale emotivo (FEEL-IT + lessico) in **11 colori**: 7 canonici da *Zur Farbenlehre* + 4 estensioni documentate
+- Classifica con **lessico cromatico italiano** (ibrido 50/50 con il modello, fino al 72% su frasi corte)
+- Fonde i colori in una **tavolozza composita** (media circolare HSV)
+- Deriva il **suono dal carattere cromatico** goethiano (scala, pitch, timbro, riverbero per colore)
+- Calcola il **polo attivo/passivo** goethiano e lo spazio affettivo Russell (ausiliario)
+- Spiega con **Integrated Gradients** e allineamento lessicale
 
 ## Pipeline
 
 ```
 Testo
-  → FEEL-IT (top-k classi)
-  → lessico italiano (arrabiato, paura, gioia…)
-  → mix ibrido modello + lessico
-  → blend cromatico Goethe (top-k layer)
-  → spazio affettivo (valence / arousal)
-  → sonic_profile (voci, scala, arpeggio)
-  → explainability (IG + contrastivo + lexicon_alignment)
+  → FEEL-IT (joy, anger, sadness, fear)
+  → traduzione emozione → colore Goethe
+  → lessico cromatico italiano (parole → colore diretto)
+  → mix ibrido → blend top-k (fino a 4 colori)
+  → sonificazione da profilo sonoro del colore dominante
+  → explainability (IG + lexicon_alignment)
 ```
 
-## Interfaccia
+## Colori
 
-Layout a schermata unica:
+| Tipo | Colori |
+|------|--------|
+| **Goethe (7)** | Giallo, Arancione, Vermiglio, Blu, Violetto, Porpora, Verde |
+| **Estensioni (4)** | Rosa (amore), Azzurro (fiducia), Verde Marcio (disgusto), Cremisi (attesa/sorpresa) |
 
-- **Sinistra:** area di scrittura (ampia, con padding generoso)
-- **Destra:** risultati scrollabili (palette, mix, Goethe, XAI, riascolto)
-- **Caricamento:** overlay «L'animo pensa…» con barra di progresso e timer
+Le estensioni citano Palmer et al., Marks (luminosità↔pitch), Ferguson & Brewster (roughness/sharpness).
 
 ## Avvio
 
@@ -46,31 +45,24 @@ Apri [http://127.0.0.1:8000](http://127.0.0.1:8000)
 
 `POST /process` con `{ "text": "..." }`
 
-Risposta principale:
-
 | Campo | Contenuto |
 |-------|-----------|
-| `semantic_analysis.emotion_mix` | Mix pesato top-k (guida colore e suono) |
-| `semantic_analysis.affective_space` | Valence, arousal, descrizione quadrante |
-| `visual_state.layers` | Colori Goethe con peso, HSV, citazione |
-| `sonic_profile` | Voci, scala, tempo BPM, arpeggio, riverbero |
-| `explainability.lexicon_alignment` | Confronto modello vs parole esplicite nel testo |
-| `explainability.influential_terms` | Parole salienti (Integrated Gradients) |
-
-## Lessico ibrido
-
-Su parole affettive esplicite (`arrabiato`, `rabbia`, `piango`, `paura`, `gioia`…) il sistema **non si fida ciecamente del top-1 del modello**. Se c'è disallineamento (es. modello → gioia, testo → rabbia), l'UI mostra un avviso e il mix viene corretto.
+| `goethe_analysis` | Mix cromatico, polo attivo/passivo, conteggio canonici/estensioni |
+| `visual_state.layers` | Layer con `goethe_color`, HSV, citazione, `source`, `pole` |
+| `sonic_profile` | Suono derivato dal blend cromatico |
+| `semantic_analysis` | Compatibilità: emozioni proxy + spazio Russell |
+| `explainability` | IG, allineamento lessico cromatico |
 
 ## Riferimenti
 
-- Russell — circumplex (valence / arousal)
-- Goethe — *Zur Farbenlehre* (analogia affettiva, non mapping 1:1 colore↔suono)
-- Ferguson & Brewster — parametri psicoacustici per sonificazione
+- Goethe — *Zur Farbenlehre* (1810)
+- Russell — circumplex (valence / arousal, ausiliario)
+- Marks — corrispondenze luminosità / pitch / loudness
+- Palmer et al. — associazioni emozione–colore
+- Ferguson & Brewster — parametri psicoacustici
 - Sundararajan et al. — Integrated Gradients
-- Winters & Wanderley — sonificazione continua di emozioni
 
 ## Stack
 
-- **Backend:** FastAPI, PyTorch, Transformers (`MilaNLProc/feel-it-italian-emotion`)
+- **Backend:** FastAPI, PyTorch, Transformers, `goethe.py` (ontologia cromatica)
 - **Frontend:** HTML/CSS/JS, Web Audio API
-- Nessun LLM generativo né RAG
