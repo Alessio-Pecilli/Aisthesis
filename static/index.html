@@ -380,7 +380,6 @@
                         <div class="metric-chip"><label>Registro</label><span id="data-freq">—</span></div>
                         <div class="metric-chip"><label>Scala</label><span id="data-scale">—</span></div>
                         <div class="metric-chip"><label>Colore base</label><span id="data-top1">—</span></div>
-                        <div class="metric-chip"><label>Canonici / est.</label><span id="data-goethe-count">—</span></div>
                     </div>
                     <canvas id="oscilloscope"></canvas>
                 </div>
@@ -784,11 +783,6 @@
             document.getElementById("data-scale").textContent = SCALE_IT[sonic.scale_name] || sonic.scale_name;
             const domColor = data.goethe_analysis?.dominant_color;
             document.getElementById("data-top1").textContent = GOETHE_COLOR_IT[domColor] || domColor || "—";
-            const ga = data.goethe_analysis;
-            if (ga) {
-                document.getElementById("data-goethe-count").textContent =
-                    `${ga.canonical_count} / ${ga.extension_count}`;
-            }
 
             document.getElementById("quote-text").textContent = data.visual_state.goethe_quote;
             document.getElementById("artistic-text").textContent = data.visual_state.artistic_description;

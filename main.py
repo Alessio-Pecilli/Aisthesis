@@ -870,12 +870,12 @@ def build_rule_trace(
     dominant = goethe_blend[0][0]
     dom_spec = GOETHE_COLORS[dominant]
     trace = [
-        f"Classificazione goethiana: {blend_line} fusi in un colore composito.",
-        f"Il suono deriva dal carattere cromatico di {dom_spec.name_it} ({dom_spec.affect}): {sonic_rationales[0] if sonic_rationales else dom_spec.sonic.sonic_rationale}",
-        f"Scala {sonic.scale_name.replace('_', ' ')}, {sonic.tempo_bpm:.0f} BPM, radice {sonic.root_pitch_hz:.1f} Hz.",
-        f"Timbro {sonic.voices[0].waveform if sonic.voices else 'sine'}, attacco {sonic.attack_time_ms:.0f} ms, rilascio {sonic.release_time_ms:.0f} ms.",
-        "Estensioni cromatiche (rosa, azzurro, verde marcio, cremisi) citano Palmer, Marks e Ferguson & Brewster.",
-        "Goethe non mappava suono e colore in modo fisso; qui l'associazione è interpretativa e psicoacustica.",
+        f"Classificazione cromatica: {blend_line} si fondono in un colore composito.",
+        f"Il colore base ({dom_spec.name_it}) è {'un colore CANONICO descritto originariamente da Goethe' if dom_spec.source == 'goethe' else 'un colore ESTESO derivato da studi psicologici successivi'} ({dom_spec.attribution}).",
+        f"Perché questa associazione? {dom_spec.quote.strip()}",
+        f"Il paesaggio sonoro è stato generato a partire da questa natura cromatica: {sonic_rationales[0] if sonic_rationales else dom_spec.sonic.sonic_rationale}",
+        f"Scala {sonic.scale_name.replace('_', ' ')}, {sonic.tempo_bpm:.0f} BPM, frequenza radice {sonic.root_pitch_hz:.1f} Hz.",
+        f"Sintesi: forma d'onda {sonic.voices[0].waveform if sonic.voices else 'sine'}, attacco {sonic.attack_time_ms:.0f} ms.",
     ]
     if lexicon_alignment and lexicon_alignment.lexicon_active:
         trace.insert(1, f"Lessico cromatico: {lexicon_alignment.note}")
