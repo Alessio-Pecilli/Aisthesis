@@ -1,8 +1,21 @@
-# --- Backend ---
-fastapi
-uvicorn[standard]
-pydantic
+# Aisthesis v5 — dipendenze runtime
+# Python 3.10+
+#
+# PyTorch: su alcune piattaforme conviene installarlo prima da
+# https://pytorch.org/get-started/locally/ (CPU o CUDA), poi:
+#   pip install -r requirements.txt
 
-# --- Emotion classification (encoder-only, Hugging Face) ---
-torch
-transformers
+# --- API ---
+fastapi>=0.110.0,<1.0
+uvicorn[standard]>=0.27.0,<1.0
+pydantic>=2.6.0,<3.0
+
+# --- NLP / inferenza ---
+torch>=2.2.0
+transformers>=4.40.0
+tokenizers>=0.19.0
+safetensors>=0.4.0
+huggingface-hub>=0.23.0
+
+# --- Valutazione e figure (scripts/ablation_study.py) ---
+matplotlib>=3.8.0
