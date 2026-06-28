@@ -187,7 +187,7 @@ Le estensioni sono motivate da letteratura su emozione–colore e corrispondenze
 
 ## Documentazione
 
-La relazione tecnica completa è in [`docs/final.tex`](docs/final.tex) (PDF: `docs/final.pdf`).
+La relazione tecnica completa è in [`relazione.pdf`](relazione.pdf).
 
 ---
 
