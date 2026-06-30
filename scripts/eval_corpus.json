@@ -1,0 +1,266 @@
+[
+  {
+    "text": "gioia",
+    "gold": "gelb",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "rabbia",
+    "gold": "rotgelb",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "tristezza",
+    "gold": "blau",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "paura",
+    "gold": "blaurot",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "amore",
+    "gold": "rosa",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "fiducia",
+    "gold": "azzurro",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "disgusto",
+    "gold": "verde_marcio",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "attesa",
+    "gold": "cremisi",
+    "category": "short",
+    "note": "Etichetta isolata"
+  },
+  {
+    "text": "meraviglioso",
+    "gold": "gelb",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "incredibile",
+    "gold": "cremisi",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "stupendo",
+    "gold": "rotblau",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "orribile",
+    "gold": "verde_marcio",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "pace",
+    "gold": "gruen",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "entusiasmo",
+    "gold": "gelbrot",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "solitudine",
+    "gold": "blau",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "terrore",
+    "gold": "blaurot",
+    "category": "short",
+    "note": "Implicito"
+  },
+  {
+    "text": "sono felice",
+    "gold": "gelb",
+    "category": "medium",
+    "note": "Predicativo"
+  },
+  {
+    "text": "sono arrabbiato",
+    "gold": "rotgelb",
+    "category": "medium",
+    "note": "Predicativo"
+  },
+  {
+    "text": "non sono felice",
+    "gold": "blau",
+    "category": "negation",
+    "note": "Negazione esplicita"
+  },
+  {
+    "text": "senza gioia nel cuore",
+    "gold": "blau",
+    "category": "negation",
+    "note": "Negazione esplicita"
+  },
+  {
+    "text": "amo questa giornata meravigliosa",
+    "gold": "rosa",
+    "category": "medium",
+    "note": "Testo citato nel paper"
+  },
+  {
+    "text": "mi fido di te",
+    "gold": "azzurro",
+    "category": "medium",
+    "note": "Testo citato nel paper"
+  },
+  {
+    "text": "Il tramonto arancione",
+    "gold": "gelbrot",
+    "category": "medium",
+    "note": "Letterale citato"
+  },
+  {
+    "text": "verde speranza natura",
+    "gold": "gruen",
+    "category": "medium",
+    "note": "Letterale citato"
+  },
+  {
+    "text": "meraviglia mistica",
+    "gold": "rotblau",
+    "category": "medium",
+    "note": "Citato come errore nel paper (atteso Porpora, predetto Cremisi)"
+  },
+  {
+    "text": "Violetto crepuscolo",
+    "gold": "rotblau",
+    "category": "medium",
+    "note": "Citato nel paper"
+  },
+  {
+    "text": "provo molto disgusto",
+    "gold": "verde_marcio",
+    "category": "medium",
+    "note": "Breve"
+  },
+  {
+    "text": "grande attesa per stasera",
+    "gold": "cremisi",
+    "category": "medium",
+    "note": "Breve"
+  },
+  {
+    "text": "mi sento molto solo",
+    "gold": "blau",
+    "category": "medium",
+    "note": "Breve"
+  },
+  {
+    "text": "ho una gran paura",
+    "gold": "blaurot",
+    "category": "medium",
+    "note": "Breve"
+  },
+  {
+    "text": "tanta pace e serenità",
+    "gold": "gruen",
+    "category": "medium",
+    "note": "Breve"
+  },
+  {
+    "text": "sono davvero entusiasta",
+    "gold": "gelbrot",
+    "category": "medium",
+    "note": "Breve"
+  },
+  {
+    "text": "La natura verde mi riempie di una calma profonda",
+    "gold": "gruen",
+    "category": "long",
+    "note": "Lungo contestuale citato parzialmente"
+  },
+  {
+    "text": "Mi fido ciecamente di tutto quello che mi dici",
+    "gold": "azzurro",
+    "category": "long",
+    "note": "Lungo citato parzialmente"
+  },
+  {
+    "text": "guardare il tramonto mi riempie di un calore immenso",
+    "gold": "gelbrot",
+    "category": "long",
+    "note": "Lungo"
+  },
+  {
+    "text": "questa situazione mi fa provare una rabbia e una frustrazione enormi",
+    "gold": "rotgelb",
+    "category": "long",
+    "note": "Lungo"
+  },
+  {
+    "text": "non so come spiegare la tristezza che provo in questo momento",
+    "gold": "blau",
+    "category": "long",
+    "note": "Lungo"
+  },
+  {
+    "text": "il panorama dalla montagna è di una bellezza e maestosità inaudita",
+    "gold": "rotblau",
+    "category": "long",
+    "note": "Lungo (ammirazione)"
+  },
+  {
+    "text": "ho provato un disgusto tremendo vedendo quella scena rivoltante",
+    "gold": "verde_marcio",
+    "category": "long",
+    "note": "Lungo (disgusto)"
+  },
+  {
+    "text": "l'attesa di scoprire cosa succederà mi tiene col fiato sospeso",
+    "gold": "cremisi",
+    "category": "long",
+    "note": "Lungo (attesa)"
+  },
+  {
+    "text": "sento un amore profondo e incondizionato verso la mia famiglia",
+    "gold": "rosa",
+    "category": "long",
+    "note": "Lungo (amore)"
+  },
+  {
+    "text": "la gioia di vederti arrivare mi ha riempito il cuore di luce",
+    "gold": "gelb",
+    "category": "long",
+    "note": "Lungo (gioia)"
+  },
+  {
+    "text": "questa foresta oscura mi incute un senso di terrore e oppressione",
+    "gold": "blaurot",
+    "category": "long",
+    "note": "Lungo (paura)"
+  },
+  {
+    "text": "ho vissuto un'esperienza mistica indimenticabile al limite del sublime",
+    "gold": "rotblau",
+    "category": "long",
+    "note": "Lungo (awe)"
+  }
+]
